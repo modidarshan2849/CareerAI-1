@@ -1,0 +1,38 @@
+
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing & Build
+/coverage
+/.next/
+/out/
+/build
+
+# Environment Variables (CRITICAL: Never commit keys)
+.env
+.env*.local
+
+# OS files
+.DS_Store
+*.pem
+
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing & Build
+/coverage
+/.next/
+/out/
+/build
+
+# Environment Variables
+.env
+.env*.local
+
+# OS files
+.DS_Store
+*.pem

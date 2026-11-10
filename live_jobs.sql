@@ -1,0 +1,175 @@
+
+-- Deactivate previous test records
+UPDATE jobs SET is_active = false;
+
+-- Insert 10 live, verified active jobs
+INSERT INTO jobs (
+  title,
+  employer,
+  location,
+  work_mode,
+  salary_min,
+  salary_max,
+  description,
+  required_skills,
+  preferred_skills,
+  source_url,
+  is_active
+)
+VALUES
+(
+        'Tier III Service Desk Engineer',
+        'Unio Digital',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' Unió Digital is an Arizona-based managed service provider (MSP) delivering Managed IT Services, Low Voltage Cabling, Access Control, Video Surveillance, and Intrusion Services. We believe technology should be intuitive, not intimidating. We are looking for an experienced Tier 3 Service Desk Technician with exceptional problem-solving skills. You will serve as the escalation point within the team,',
+        ARRAY['azure','cisco','security','video','documentation','hardware','helpdesk','onboarding','MSP','ticketing','Microsoft 365','IT systems'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/information-technology/tier-iii-service-desk-engineer-2091045',
+        true
+      ),
+(
+        'US Remote Patient Care Advocate (Customer Service)',
+        'VXI Global Solutions',
+        'USA',
+        'remote',
+        NULL,
+        NULL,
+        ' Job Title: Patient Care Advocate Job Location: Remote About Us: We are a dedicated team focused on improving access to affordable prescription medications for patients. By partnering with insurance companies, healthcare providers, and pharmacies, we work to reduce the financial burden of medications, ensuring that patients can access the treatments they need without excessive costs. Role Overview',
+        ARRAY['healthcare','insurance'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/customer-service/us-remote-patient-care-advocate-customer-service-2091168',
+        true
+      ),
+(
+        'Freelance Writer',
+        'IAPWE',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' Our organization is seeking content writers to create articles and blog posts on a variety of topics. The rate of pay is $20 per 100 words (this comes out to approximately $100 per article or $50 per hour). Some topics you may be asked to write about include the following (you can always turn down a topic if you do not feel comfortable writing about it, however if you have experience or expertise',
+        ARRAY['REST'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/writing/freelance-writer-1185979',
+        true
+      ),
+(
+        'Content Reviewer - United States',
+        'TELUS Digital',
+        'USA',
+        'remote',
+        NULL,
+        NULL,
+        ' We are looking for an independent, flexible, remote opportunity where you can help improve AI-powered search technology from the comfort of your home? If you''re curious, internet-savvy, and enjoy evaluating online content, this freelance project could be a great fit. A Day in the Life of a Content Reviewer - US In this role, you will analyze and provide feedback on text, webpages, images, and oth',
+        ARRAY['android','ios','social media','AI/ML'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/all-others/content-reviewer-united-states-2091166',
+        true
+      ),
+(
+        'Freelance Copywriter',
+        'Coalition Technologies ',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' CT Marketing Agency is seeking skilled Freelance Copywriters to write high-quality, SEO-driven content for eCommerce and lead generation websites. This is a freelance, project-based writing role. The ideal candidate has excellent English writing skills, strong research ability, and experience writing content that follows detailed, client-specific guidelines. Projects commonly include category pag',
+        ARRAY['accounting','excel','research','data analysis','bookkeeping','google sheets','quickbooks','data entry','insurance','G Suite'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/writing/freelance-copywriter-1749306',
+        true
+      ),
+(
+        'Full-Stack Developer',
+        'Fluence International, Inc.',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' We’re looking for a pragmatic, security-minded Full-Stack Developer to help build and scale Fluence’s B2B products used by clinicians, researchers, and organizations in psychedelic-assisted therapy and mental health. You’ll work closely with and report to our Senior AI &amp; Design Lead to turn product requirements into robust, secure, and well-documented applications, as well as maintain existin',
+        ARRAY['admin','api','AWS','backend','cloud','docker','frontend','fullstack','javascript','react','security','UI/UX','AI/ML','automation','documentation','healthcare','Typescript','web applications','SOLID','JSON','serverless','next.js','github','REST','mental health','BaaS','datadog'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/software-development/full-stack-developer-2091165',
+        true
+      ),
+(
+        'Senior Back-end Developer',
+        'Lemon.io',
+        'Europe, USA, Canada, Australia, Singapore, Mexico, Saudi Arabia',
+        'remote',
+        NULL,
+        NULL,
+        ' Lemon.io helps companies in the US and Europe hire experienced engineers, from funded startups to teams like Klarna, Retool, and Pinterest. We’ve been doing this since 2015, and more than 1,500 companies have hired engineers through us. Currently, we have a few open positions from our client, an AI-native cloud company. AI teams use its platform to run inference on open-source models, fine-tune t',
+        ARRAY['.Net','android','C','C#','C++','cloud','data science','golang','ios','java','javascript','kubernetes','node.js','php','python','react','ruby/rails','scala','shopify','swift','UI/UX','wordpress','blockchain','AI/ML','automation','project management','react native','rust','unity','electron','spring','laravel','Ethereum','graphic design','Typescript','distributed systems','angular','firebase','data engineering','Site Reliability','Symfony','Linux/Unix','next.js','infrastructure','flutter','GPU'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/software-development/senior-back-end-developer-2091135',
+        true
+      ),
+(
+        'Head of Engineering',
+        'Lemon.io',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' About Lemon.io Lemon.io is a profitable, growing talent marketplace that connects vetted senior engineers with companies that need them. We’ve been in business for 10 years, have 60 people across Ukraine, Europe, Canada, and the US, and process over $16M in annual GMV. We compress the traditional 2–5 week hiring timeline down to 24–48 hours through a curated, pre-vetted supply of developers. Hiri',
+        ARRAY['AI/ML','startup','marketplace','fundraising'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/software-development/head-of-engineering-2091134',
+        true
+      ),
+(
+        'AI Trainer - Video Annotation',
+        'iMerit Technology',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' AI Trainer - Video Annotation Remote | Independent Contractor Prove your skills. Get certified. Robotics AI is advancing rapidly, and high-quality video data helps intelligent systems better understand the world around them. We are inviting detail-oriented professionals to complete our certification process for potential robotics AI projects. ▌ What you will do As part of the certification proces',
+        ARRAY['video','AI/ML','robotics'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/artificial-intelligence/ai-trainer-video-annotation-2091161',
+        true
+      ),
+(
+        'Software Engineer, AI Coding Tasks',
+        'Askable',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' We''re looking for experienced software engineers to build AI coding tasks from a codebase they know well. US$1,000 per task, and you can do as many tasks as you want. You turn a real change from a repository you know into a task that today''s best AI coding models struggle with: hard for the models, but fair for a skilled engineer. Your tasks are used to measure and train AI coding models. Remote,',
+        ARRAY['C++','docker','git','go','java','python','security','AI/ML','rust','Typescript','distributed systems','SOLID','Linux/Unix','testing','infrastructure'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/software-development/software-engineer-ai-coding-tasks-2091158',
+        true
+      ),
+(
+        'Tech Lead Full-Stack Rails Engineer',
+        'Mitre Media',
+        'USA, Canada, USA timezones',
+        'remote',
+        NULL,
+        NULL,
+        ' About Mitre Media Mitre Media is redefining FinTech with AI-driven tools that empower millions of investors. Our portfolio, including Dividend.com and MutualFunds.com, leverages LLMs to deliver novel data insights and visually rich user experiences. For over a decade, we’ve served individual investors, financial advisors, and top asset managers like BlackRock and Vanguard through our premium data',
+        ARRAY['api','CSS','docker','elasticsearch','fullstack','html','javascript','kubernetes','postgresql','react','ror','ruby/rails','AI/ML','CAD','advertising','Redis','ES6','web applications','MySQL','NLP','fintech','Micro services','github','system architecture','SQL'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/software-development/tech-lead-full-stack-rails-engineer-2069746',
+        true
+      ),
+(
+        'Remote Office Assistant',
+        'Coalition Technologies ',
+        'Worldwide',
+        'remote',
+        NULL,
+        NULL,
+        ' Coalition Technologies is seeking a reliable, detail-oriented, and highly organized Remote Office Assistant to support administrative, bookkeeping, billing, reporting, data entry, and internal operations tasks. This role is ideal for someone with strong communication skills, discretion, attention to detail, and a willingness to learn and grow within a fast-paced remote work environment. As an Off',
+        ARRAY['CSS','excel','frontend','git','html','illustrator','magento','photoshop','php','shopify','wordpress','MySQL','startup','responsive','themes','bootstrap','insurance','jQuery','Ajax'],
+        ARRAY[]::text[],
+        'https://remotive.com/remote-jobs/marketing/remote-office-assistant-1680495',
+        true
+      );

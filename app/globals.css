@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid theme("colors.verdigris.DEFAULT");
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-paper-raised border border-hairline rounded-card p-6;
+  }
+
+  /* Signature element: an evidence chip. Every derived claim in the product
+     (skill years, career strength factors, match reasoning) renders through
+     this so the "show your work" premise is visible in the UI itself, not
+     just the backend rules. */
+  .evidence-chip {
+    @apply inline-flex items-center gap-1.5 font-mono text-[11px] tracking-wide uppercase
+           px-2 py-0.5 rounded border;
+  }
+  .evidence-chip--high {
+    @apply bg-signal-green-bg text-signal-green border-signal-green/30;
+  }
+  .evidence-chip--medium {
+    @apply bg-verdigris-light text-verdigris-dark border-verdigris/30;
+  }
+  .evidence-chip--low {
+    @apply bg-signal-amber-bg text-signal-amber border-signal-amber/30;
+  }
+  .evidence-chip--none {
+    @apply bg-hairline/40 text-slate border-hairline;
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 font-mono text-xs font-medium px-2.5 py-1 rounded-full;
+  }
+  .status-pill--green {
+    @apply bg-signal-green-bg text-signal-green;
+  }
+  .status-pill--amber {
+    @apply bg-signal-amber-bg text-signal-amber;
+  }
+  .status-pill--red {
+    @apply bg-signal-red-bg text-signal-red;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-verdigris text-paper-raised
+           px-4 py-2.5 text-sm font-medium hover:bg-verdigris-dark transition-colors
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-hairline bg-paper-raised
+           text-ink px-4 py-2.5 text-sm font-medium hover:bg-paper transition-colors
+           disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-hairline bg-paper-raised px-3 py-2.5 text-sm
+           placeholder:text-slate-light focus:border-verdigris focus:ring-1 focus:ring-verdigris outline-none;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-slate uppercase tracking-wide mb-1.5;
+  }
+}
