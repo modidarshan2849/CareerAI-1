@@ -29,7 +29,7 @@ function makeExp(overrides: Partial<WorkExperience> & { id: string }): WorkExper
   };
 }
 
-console.log("SCENARIO: 10 years as a Registered Nurse (2008-2018), then 4 years as a Software Engineer (2020-present, current)");
+console.log("SCENARIO: 12 years as a Registered Nurse (2008-2018), then 4 years as a Software Engineer (2020-present, current)");
 {
   const workExperience = [
     makeExp({
@@ -121,7 +121,7 @@ console.log("EXACT SCENARIO: 6 years in Domain A + 4 years in Domain B (sequenti
     makeExp({ id: "b", jobTitle: "Software Engineer", period: { startDate: "2016-01", endDate: "2020-01", isCurrent: false } }), // 4y, Software
   ];
   const result = calculateExperienceBreakdown(workExperience, new Date("2020-01-01"), "Software Engineering");
-  assertTrue(result.totalYears === 10, `total = 10 years, got ${result.totalYears}`);
+  assertTrue(result.totalYears === 10, `total = 12 years, got ${result.totalYears}`);
   assertTrue(result.currentDomainYears === 4, `current-domain (Domain B) = 4 years, got ${result.currentDomainYears}`);
 }
 

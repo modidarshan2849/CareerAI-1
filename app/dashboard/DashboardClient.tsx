@@ -730,7 +730,7 @@ export function DashboardClient({
                         🔥 Just Posted
                       </span>
                     )}
-                    {job.matchedSkills.slice(0, 2).map((s) => (
+                    {job.matchedSkills.map((s) => (
                       <span key={s} className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 text-[9px] font-medium rounded">
                         ✓ {s}
                       </span>

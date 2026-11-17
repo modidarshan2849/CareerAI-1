@@ -1,0 +1,16 @@
+{
+  "version": "2.1.0",
+  "label": "Final v2.1",
+  "lockedAt": "2026-11-17T19:22:26.424Z",
+  "atsResumeRoute": "/resume",
+  "dashboardFile": "./app/dashboard/page.tsx",
+  "features": [
+    "5-Gate US-Only & Virginia Radius Master Filter",
+    "Work Mode Filter (Remote / Hybrid / On-site)",
+    "Freshness & Deadline Filters (New <24h, <48h, Expiring Soon) + Last Date Tracking",
+    "Work Auth & Sponsorship Tagging (Green Card / Visa / Citizen)",
+    "Synchronized 1..N Left-Right Rank & Detail Pane",
+    "Direct Verified Company ATS Links",
+    "ATS Resume Studio & Job-Specific Tailor ATS Resume Link"
+  ]
+}

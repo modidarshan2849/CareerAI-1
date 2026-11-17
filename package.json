@@ -1,6 +1,6 @@
 {
   "name": "careerai",
-  "version": "0.1.0",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,6 +10,7 @@
     "test:logic": "tsx lib/__tests__/experience.test.ts && tsx lib/__tests__/skills.test.ts && tsx lib/__tests__/matching.test.ts && tsx lib/__tests__/validation.test.ts && tsx lib/__tests__/careerStrength.test.ts && tsx lib/__tests__/extractText.test.ts && tsx lib/__tests__/careerDomain.test.ts && tsx lib/__tests__/roles.test.ts && tsx lib/__tests__/gaps.test.ts && tsx lib/__tests__/recompute.test.ts && tsx lib/__tests__/integrationReadiness.test.ts && tsx lib/__tests__/wiringAudit.test.ts && tsx lib/__tests__/qaEndToEnd.test.ts && tsx lib/__tests__/candidateAFixture.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1166.0",
     "@google/genai": "^3.0.0",
     "@supabase/ssr": "0.5.2",
     "@supabase/supabase-js": "2.47.10",

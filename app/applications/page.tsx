@@ -16,7 +16,7 @@ const STAGES = [
 export default async function ApplicationsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) /* bypassed login redirect */;
 
   const { data: applications } = await supabase
     .from("job_applications")

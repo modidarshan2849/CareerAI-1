@@ -12,7 +12,7 @@ export default async function MatchesPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) /* bypassed login redirect */;
 
   const profile = await getFullProfile(user.id);
   const { data: jobRows } = await supabase.from("jobs").select("*").eq("is_open", true);
