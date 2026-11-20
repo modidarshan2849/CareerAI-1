@@ -113,6 +113,25 @@ function formatUniformDate(input?: string | null, fallback = "Not Listed"): stri
   return trimmed;
 }
 
+
+const FORTUNE_500_PATTERNS = [
+  /\b(performance food group|\bpfg\b|capital one|carmax|dominion energy|dollar tree|hilton|general dynamics|northrop grumman|booz allen|leidos|saic|altria|markel|norfolk southern|huntington ingalls|dxc technology|aes corp|\bnvr\b)\b/i,
+  /\b(walmart|amazon|apple|microsoft|alphabet|google|meta platforms|facebook|berkshire hathaway|unitedhealth|optum|mckesson|cencora|amerisourcebergen|cardinal health|cvs health|aetna|cigna|elevance|anthem|humana|centene|molina)\b/i,
+  /\b(jpmorgan|jp morgan|bank of america|wells fargo|citigroup|citi\b|goldman sachs|morgan stanley|american express|visa\b|mastercard|charles schwab|blackrock|state street|truist|pnc\b|u\.s\. bank|us bank|discover|synchrony|ally financial)\b/i,
+  /\b(exxon|chevron|conocophillips|marathon petroleum|valero|phillips 66|duke energy|southern company|nextera|exelon|american electric power|sempra)\b/i,
+  /\b(lockheed martin|boeing|\brtx\b|raytheon|honeywell|caterpillar|john deere|deere & company|general electric|\bge aerospace\b|3m\b|ford motor|general motors|tesla|paccar|cummins)\b/i,
+  /\b(cisco|oracle|ibm\b|salesforce|intel\b|nvidia|amd\b|qualcomm|broadcom|texas instruments|adobe|servicenow|workday|intuit|paycom|adp\b|cognizant|accenture|hp inc|hewlett packard|dell technologies)\b/i,
+  /\b(verizon|at&t|t-mobile|comcast|charter communications|walt disney|netflix|warner bros|paramount)\b/i,
+  /\b(target|costco|home depot|lowe.s|walgreens|kroger|albertsons|best buy|tjx|ross stores|autozone|o.reilly|starbucks|mcdonald.s|yum! brands|marriott|delta air lines|united airlines|american airlines|southwest airlines|\bups\b|fedex)\b/i,
+  /\b(procter & gamble|\bp&g\b|johnson & johnson|pfizer|merck|abbvie|bristol-myers|eli lilly|amgen|gilead|abbott|thermo fisher|danaher|medtronic|stryker|becton dickinson|pepsico|coca-cola|mondelez|kraft heinz|general mills|tyson foods|sysco|us foods)\b/i
+];
+
+function isFortune500Company(company?: string | null): boolean {
+  const c = (company || "").trim();
+  if (!c) return false;
+  return FORTUNE_500_PATTERNS.some((re) => re.test(c));
+}
+
 function decodeAndFormatDescription(raw?: string | null): string[] {
   if (!raw) return [];
   const decoded = raw
@@ -438,10 +457,12 @@ function evaluateCandidateScore(job: JobRecord, profileSkillsLower: string[]) {
   const salaryInfo = resolveSalaryInfo(job);
   const datesInfo = extractJobDates(job);
   const highlights = extractKeyHighlights(job);
+  const isFortune500 = isFortune500Company(job.company);
   const finalScore = Math.max(55, Math.min(98, score));
 
   return {
     score: finalScore,
+    isFortune500,
     track,
     trackPts,
     skillMatchPct,
@@ -538,6 +559,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
   const [workMode, setWorkMode] = useState<"ALL" | "Remote" | "Hybrid">("ALL");
   const [workStatus, setWorkStatus] = useState<"ALL" | WorkStatusKey>("ALL");
   const [minScore, setMinScore] = useState<number>(0);
+  const [fortune500Only, setFortune500Only] = useState<boolean>(false);
   const [minSalaryFloor, setMinSalaryFloor] = useState<number>(0);
   const [maxMiles, setMaxMiles] = useState<number>(0);
 
@@ -909,6 +931,8 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
       .sort((a, b) => b.fit.score - a.fit.score);
   }, [initialJobs, profileSkillsLower]);
 
+  const fortune500Count = useMemo(() => enriched.filter((x) => x.fit.isFortune500).length, [enriched]);
+
   const statusCounts = useMemo(() => {
     let gcCitizen = 0;
     let notSpec = 0;
@@ -956,6 +980,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
 
       if (workStatus !== "ALL" && fit.workStatus !== workStatus) return false;
       if (minScore > 0 && fit.score < minScore) return false;
+      if (fortune500Only && !fit.isFortune500) return false;
 
       if (minSalaryFloor > 0) {
         if (!fit.minSalaryAnnual || fit.minSalaryAnnual < minSalaryFloor) return false;
@@ -972,7 +997,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
 
       return true;
     });
-  }, [enriched, search, titleQuery, activeTitlesList, zone, trackFilter, workMode, workStatus, minScore, minSalaryFloor, maxMiles, hideApplied, appliedMap]);
+  }, [enriched, search, titleQuery, activeTitlesList, zone, trackFilter, workMode, workStatus, minScore, fortune500Only, minSalaryFloor, maxMiles, hideApplied, appliedMap]);
 
   const kpis = useMemo(() => {
     const total = filtered.length;
@@ -1155,6 +1180,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
     setWorkMode("ALL");
     setWorkStatus("ALL");
     setMinScore(0);
+    setFortune500Only(false);
     setMinSalaryFloor(0);
     setMaxMiles(0);
     setTargetTitlesText("");
@@ -1430,6 +1456,20 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                   </button>
                 ))}
               </div>
+
+              <span className="text-slate-300">|</span>
+
+              <button
+                type="button"
+                onClick={() => setFortune500Only((prev) => !prev)}
+                className={`px-2.5 py-1 rounded-md font-semibold transition border ${
+                  fortune500Only
+                    ? "bg-amber-500 text-slate-950 border-amber-600 shadow-2xs"
+                    : "bg-amber-50/70 hover:bg-amber-100 text-amber-900 border-amber-200"
+                }`}
+              >
+                ★ Fortune 500 ({fortune500Count})
+              </button>
 
               <label className="ml-auto inline-flex items-center gap-1.5 text-slate-600 font-medium cursor-pointer">
                 <input
@@ -2070,6 +2110,11 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                         <div className="flex items-center gap-1.5 text-xs">
                           <span className="font-mono text-slate-400">#{idx + 1}</span>
                           <span className="font-bold text-slate-800 truncate">{job.company}</span>
+                          {fit.isFortune500 && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold">
+                              ★ F500
+                            </span>
+                          )}
                           {isApplied && (
                             <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-semibold">
                               Applied
@@ -2130,6 +2175,11 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                   <div className="space-y-1 max-w-xl">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="font-bold text-indigo-700">{activeItem.job.company}</span>
+                      {activeItem.fit.isFortune500 && (
+                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold">
+                          ★ Fortune 500
+                        </span>
+                      )}
                       {formatReqBadge(activeItem.job.req_id) && (
                         <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[11px]">
                           {formatReqBadge(activeItem.job.req_id)}
