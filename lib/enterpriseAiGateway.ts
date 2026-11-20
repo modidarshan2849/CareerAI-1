@@ -1,3 +1,4 @@
+import { logApiUsage } from "@/lib/usageTelemetry";
 import { GoogleGenAI } from "@google/genai";
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 
@@ -71,6 +72,7 @@ export async function executeEnterpriseAiJob(req: GatewayRequest): Promise<strin
     return await callGemini(req);
   } catch (geminiError: any) {
     console.warn(`[AI Gateway] Gemini bypass (${geminiError?.message}) -> Routing to Bedrock...`);
+    await logApiUsage({ provider: "bedrock", endpoint: "bedrock-fallback", unitsUsed: 2.5, unitType: "tokens", userId: "active_user" });
 
     if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
       try {

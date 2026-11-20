@@ -1,3 +1,4 @@
+import { logApiUsage } from "@/lib/usageTelemetry";
 export type WorkAuthStatus =
   | "SPONSORSHIP_AVAILABLE"
   | "STANDARD_US_WORK_AUTH"
@@ -1207,6 +1208,7 @@ async function discoverOffsiteJobsViaJSearchAndSerper(
         },
         signal: AbortSignal.timeout(6000),
       });
+      await logApiUsage({ provider: "jsearch", endpoint: "/search", unitsUsed: 2, unitType: "request", statusCode: jRes.status });
       if (jRes.ok) {
         const jData = await jRes.json();
         const items = Array.isArray(jData?.data) ? jData.data : [];
@@ -1263,6 +1265,7 @@ async function discoverOffsiteJobsViaJSearchAndSerper(
         body: JSON.stringify({ q: atsQuery, num: 30, gl: "us" }),
         signal: AbortSignal.timeout(6000),
       });
+      await logApiUsage({ provider: "serper", endpoint: "/search", unitsUsed: 1, unitType: "search", statusCode: sRes.status });
       if (sRes.ok) {
         const sData = await sRes.json();
         const organic = Array.isArray(sData?.organic) ? sData.organic : [];
@@ -1303,10 +1306,11 @@ async function discoverOffsiteJobsViaJSearchAndSerper(
   }
 
   // 3. Last-Resort Fallback: SerpApi (only runs if JSearch + Serper returned < 5 direct ATS roles)
-  if (discovered.length < 5 && serpApiKey) {
+  if (discovered.length === 0 && serpApiKey) {
     try {
       const serpUrl = `https://serpapi.com/search.json?engine=google_jobs&q=${encodeURIComponent(`${query} ${locationHint}`)}&hl=en&gl=us&api_key=${serpApiKey}`;
       const fRes = await fetch(serpUrl, { signal: AbortSignal.timeout(6000) });
+      await logApiUsage({ provider: "serpapi", endpoint: "/search.json", unitsUsed: 1, unitType: "search", statusCode: fRes.status });
       if (fRes.ok) {
         const fData = await fRes.json();
         const jobsResults = Array.isArray(fData?.jobs_results) ? fData.jobs_results : [];
