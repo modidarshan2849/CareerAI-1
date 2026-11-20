@@ -1,5 +1,6 @@
 import { logApiUsage } from "@/lib/usageTelemetry";
 import { aggregateUniversalDirectJobs, VerifiedJobPosting } from "@/lib/universalAtsEngine";
+import { PRIORITY_COMPANY_QUERIES } from "@/lib/universalAtsEngine";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +48,10 @@ export async function GET(req: Request) {
   const encoder = new TextEncoder();
   const { searchParams } = new URL(req.url);
   const fullSweep = searchParams.get("full") === "true";
-  const sweepQueries = fullSweep
+  const baseSweepQueries = fullSweep
     ? ["Data Analyst", "Business Intelligence", "Analytics Engineer", "Product Manager", "Software Engineer"]
     : ["Data Analyst", "Business Intelligence", "Analytics Engineer"];
+  const sweepQueries = Array.from(new Set([...baseSweepQueries, ...PRIORITY_COMPANY_QUERIES]));
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -111,6 +113,7 @@ export async function GET(req: Request) {
               clearance_required: job.clearanceOrCitizenRequired,
               status: "ACTIVE",
               last_verified_at: nowIso,
+              posted_at: (job as any).postedAt || nowIso,
               ...(embedding ? { embedding } : {}),
             };
           })

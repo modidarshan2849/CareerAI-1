@@ -650,7 +650,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
         if (Array.isArray(parsedHist)) setHistoryLog(parsedHist);
       }
 
-      const savedPrefs = localStorage.getItem("careerai_prefs_v27");
+      const savedPrefs = localStorage.getItem("careerai_prefs_v31");
       if (savedPrefs) {
         const p = JSON.parse(savedPrefs);
         if (p.zone) setZone(p.zone);
@@ -785,8 +785,8 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
     }
 
     try {
-      localStorage.setItem("careerai_prefs_v27", JSON.stringify(payload));
-      setValidationMessage({ type: "ok", text: "Preferences saved and Role Command updated." });
+      localStorage.setItem("careerai_prefs_v31", JSON.stringify(payload));
+      setValidationMessage({ type: "ok", text: "Preferences saved and Requisition Hub updated." });
       return true;
     } catch {
       setValidationMessage({ type: "err", text: "Unable to save preferences in browser storage." });
@@ -1184,7 +1184,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
     setTargetTitlesText("");
     setPendingRemovalTitles([]);
     setHideApplied(false);
-    try { localStorage.removeItem("careerai_prefs_v27"); } catch {}
+    try { localStorage.removeItem("careerai_prefs_v31"); } catch {}
     setValidationMessage(null);
   };
 
@@ -1200,11 +1200,11 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base tracking-tight">CareerAI Intelligence</span>
                 <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                  v2.7
+                  v3.1
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Role Command • Master Profile &amp; Resume Attachment • Uniform Dates • Per-Role ATS Resume
+                Requisition Hub • Master Profile &amp; Resume Attachment • Uniform Dates • Per-Role ATS Resume
               </p>
             </div>
           </div>
@@ -1221,7 +1221,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                   topView === "ROLE_COMMAND" ? "bg-indigo-600 text-white" : "text-slate-300 hover:text-white"
                 }`}
               >
-                Role Command ({filtered.length})
+                Requisition Hub ({filtered.length})
               </button>
               <button
                 type="button"
@@ -1417,7 +1417,6 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                 <span className="text-slate-400 font-semibold mr-0.5">Work Status:</span>
                 {[
                   { id: "ALL", label: "All" },
-                  { id: "GC_OR_CITIZEN_REQ", label: `Requires Green Card / Citizenship (${statusCounts.gcCitizen})` },
                   { id: "NOT_SPECIFIED", label: `Not Specified (${statusCounts.notSpec})` }
                 ].map((ws) => (
                   <button
@@ -1766,14 +1765,14 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                   onClick={() => setTopView("ROLE_COMMAND")}
                   className="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700"
                 >
-                  ← Back to Role Command
+                  ← Back to Requisition Hub
                 </button>
               </div>
             </div>
 
             {historyLog.length === 0 ? (
               <div className="py-10 text-center text-xs text-slate-500">
-                No history entries recorded yet. Click any requisition in Role Command or mark a role Applied to start your log.
+                No history entries recorded yet. Click any requisition in Requisition Hub or mark a role Applied to start your log.
               </div>
             ) : (
               <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden">
@@ -1818,7 +1817,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
             <div className="border-b border-slate-200 pb-3">
               <h2 className="text-base font-extrabold text-slate-900">Search &amp; Filtering Preferences</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Click any green active title to mark for removal, or click a suggested title from your Master Profile to add—then save to update Role Command.
+                Click any green active title to mark for removal, or click a suggested title from your Master Profile to add—then save to update Requisition Hub.
               </p>
             </div>
 
@@ -1939,7 +1938,6 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
                 >
                   <option value="ALL">All Work Statuses</option>
-                  <option value="GC_OR_CITIZEN_REQ">Requires Green Card / Citizenship</option>
                   <option value="NOT_SPECIFIED">Not Specified</option>
                 </select>
               </div>
@@ -1953,7 +1951,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                 }}
                 className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700"
               >
-                Save &amp; Update Role Command →
+                Save &amp; Update Requisition Hub →
               </button>
             </div>
           </div>

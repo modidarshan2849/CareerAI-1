@@ -627,8 +627,22 @@ export function matchesRoleQuery(title: string, query: string): boolean {
     return isPm && !isMarketing;
   }
 
-  const terms = q.split(/\s+/).filter((w) => w.length > 2);
-  return terms.every((term) => t.includes(term));
+  const cleanedRoleQuery = q
+    .replace(/\bs&p\b|\bglobal\b|\bsynchrony\b|\bcareers\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleanedRoleQuery) return true;
+
+  if (/data analyst|analytics|business intelligence|\bbi\b|quantitative|risk/i.test(cleanedRoleQuery)) {
+    const blocked = ["software", "frontend", "backend", "full stack", "mobile", "ios", "android", "devops", "sre", "helpdesk", "desktop support", "facilities", "payroll"];
+    if (blocked.some((bad) => t.includes(bad))) return false;
+    return /analyst|analytics|intelligence|\bbi\b|quant|data|risk|insights|reporting/i.test(t);
+  }
+
+  const terms = cleanedRoleQuery.split(/\s+/).filter((w) => w.length > 2);
+  if (terms.length === 0) return true;
+  return terms.some((term) => t.includes(term));
 }
 
 // Gate 3: Green Card / US Citizen / Work Authorization Classifier & Validator
@@ -1185,6 +1199,73 @@ async function discoverOffsiteCorporateJobsFromLinkedIn(
 }
 
 
+
+async function fetchUsajobsJobs(
+  query: string,
+  locationHint?: string
+): Promise<Partial<VerifiedJobPosting>[]> {
+  const apiKey = process.env.USAJOBS_API_KEY;
+  const userAgent = process.env.USAJOBS_USER_AGENT || "careerai-1@example.com";
+  if (!apiKey) return [];
+
+  try {
+    const params = new URLSearchParams({
+      Keyword: query,
+      ResultsPerPage: "25",
+    });
+    if (locationHint && locationHint.trim()) {
+      params.set("LocationName", locationHint.trim());
+    }
+
+    const res = await fetch(`https://data.usajobs.gov/api/search?${params.toString()}`, {
+      headers: {
+        Host: "data.usajobs.gov",
+        "User-Agent": userAgent,
+        "Authorization-Key": apiKey,
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items = data?.SearchResult?.SearchResultItems || [];
+
+    return items.map((entry: any) => {
+      const descObj = entry?.MatchedObjectDescriptor || {};
+      const applyUrl =
+        descObj?.PositionURI ||
+        (Array.isArray(descObj?.ApplyURI) ? descObj.ApplyURI[0] : "") ||
+        "";
+      const locText =
+        descObj?.PositionLocationDisplay ||
+        (Array.isArray(descObj?.PositionLocation) && descObj.PositionLocation[0]?.LocationName) ||
+        "United States";
+      const minSal = descObj?.PositionRemuneration?.[0]?.MinimumRange;
+      const maxSal = descObj?.PositionRemuneration?.[0]?.MaximumRange;
+      const salaryRange =
+        minSal && maxSal ? `${Number(minSal).toLocaleString()} - ${Number(maxSal).toLocaleString()}` : undefined;
+
+      return {
+        title: descObj?.PositionTitle || "Federal Role",
+        company: descObj?.OrganizationName || "U.S. Federal Agency",
+        location: locText,
+        applyUrl,
+        urlVerified: false,
+        verificationMethod: "PENDING_HTTP_PROBE",
+        postedDate: descObj?.PublicationStartDate || "Active",
+        postedHoursAgo: 24,
+        salaryRange,
+        description:
+          descObj?.UserArea?.Details?.JobSummary ||
+          descObj?.QualificationSummary ||
+          `${descObj?.PositionTitle || "Role"} at ${descObj?.OrganizationName || "USAJOBS"} (${locText}).`,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 async function discoverOffsiteJobsViaJSearchAndSerper(
   query: string,
   homeCity?: string
@@ -1553,11 +1634,12 @@ export async function aggregateUniversalDirectJobs(
   }
 
   if (includeAggregators) {
-    const [offsiteLinkedIn, apiDiscoveredJobs] = await Promise.all([
+    const [offsiteLinkedIn, apiDiscoveredJobs, usajobsDiscovered] = await Promise.all([
       discoverOffsiteCorporateJobsFromLinkedIn(query, homeCity),
       discoverOffsiteJobsViaJSearchAndSerper(query, homeCity),
+      fetchUsajobsJobs(query, homeCity),
     ]);
-    rawPostings.push(...offsiteLinkedIn, ...apiDiscoveredJobs);
+    rawPostings.push(...offsiteLinkedIn, ...apiDiscoveredJobs, ...usajobsDiscovered);
   }
 
   audit.totalRawDiscovered = rawPostings.length;
@@ -1696,3 +1778,12 @@ export async function aggregateUniversalDirectJobs(
 
   return { jobs: finalJobs, audit };
 }
+
+
+// Targeted Fortune 500 & Financial Services ATS queries (S&P Global, Synchrony, etc.)
+export const PRIORITY_COMPANY_QUERIES = [
+  "S&P Global Data Analyst",
+  "S&P Global Business Intelligence",
+  "Synchrony Data Analyst",
+  "Synchrony Risk Analytics",
+];

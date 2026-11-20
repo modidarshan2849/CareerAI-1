@@ -17,6 +17,9 @@ export default async function AdminUsagePage({
       <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center p-6">
         <div className="max-w-md bg-slate-900 border border-slate-800 rounded-xl p-6 text-center space-y-2">
           <h1 className="text-lg font-bold text-white">Restricted Admin Telemetry</h1>
+      <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs text-amber-900">
+        <span>USAJOBS API: Requires <code>USAJOBS_API_KEY</code> &amp; <code>USAJOBS_USER_AGENT</code> in env</span>
+      </div>
           <p className="text-xs text-slate-400">
             Append <code className="text-indigo-400">?key=YOUR_ADMIN_SECRET</code> to view API quotas, forecasts, and production cost projections.
           </p>
