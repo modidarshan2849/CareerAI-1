@@ -118,7 +118,7 @@ export async function GET(req: Request) {
         rows.push(...built);
       }
 
-      send(`[3/4] Upserting ${rows.length} rows into Supabase...");
+      send(`[3/4] Upserting ${rows.length} rows into Supabase...`);
         await logApiUsage({ provider: "gemini", endpoint: "embeddings-batch", unitsUsed: 1.5, unitType: "tokens" });
       const upsertBatchSize = 200;
       for (let i = 0; i < rows.length; i += upsertBatchSize) {
