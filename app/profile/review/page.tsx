@@ -16,9 +16,7 @@ export default async function ProfileReviewPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    /* bypassed login redirect */;
-  }
+  if (!user) redirect("/login");
 
   const [snapshotRes, skillsRes, workRes] = await Promise.all([
     supabase

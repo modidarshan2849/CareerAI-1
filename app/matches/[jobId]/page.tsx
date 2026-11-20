@@ -12,7 +12,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) /* bypassed login redirect */;
+  if (!user) redirect("/login");
 
   const { data: jobRow } = await supabase.from("jobs").select("*").eq("id", jobId).maybeSingle();
   if (!jobRow) notFound();

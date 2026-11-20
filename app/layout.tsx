@@ -1,36 +1,25 @@
 import type { Metadata } from "next";
-import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import type { CSSProperties, ReactNode } from "react";
 import "./globals.css";
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-  weight: ["400", "500", "600"],
-});
-
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  variable: "--font-plex-sans",
-  weight: ["400", "500", "600"],
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  variable: "--font-plex-mono",
-  weight: ["400", "500"],
-});
 
 export const metadata: Metadata = {
   title: "CareerAI — Stop applying everywhere",
-  description: "Target the jobs you can actually win, backed by evidence from your own career history.",
+  description:
+    "Target the jobs you can actually win, backed by evidence from your own career history.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+const fontVars: CSSProperties = {
+  "--font-fraunces": 'Fraunces, Georgia, Cambria, "Times New Roman", Times, serif',
+  "--font-plex-sans":
+    '"IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  "--font-plex-mono":
+    '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+} as CSSProperties;
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body
-        className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable} font-body bg-paper text-ink antialiased`}
-      >
+    <html lang="en" style={fontVars}>
+      <body className="font-body bg-paper text-ink antialiased">
         {children}
       </body>
     </html>

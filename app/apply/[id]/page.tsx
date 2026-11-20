@@ -4,8 +4,9 @@ import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
-export default function CorporateApplicationPortal({ params }: { params: { id: string } }) {
-  const job = GENERATED_228_JOBS.find(j => j.id === params.id);
+export default async function CorporateApplicationPortal({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const job = GENERATED_228_JOBS.find(j => j.id === id);
 
   if (!job) {
     return (

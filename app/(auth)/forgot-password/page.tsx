@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useState } from "react";
 
 export default function ForgotPasswordPage() {
-  const supabase = createClient();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +15,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
 
+    const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       // type=recovery is what /auth/callback branches on to route to /reset-password
       // instead of /dashboard.
