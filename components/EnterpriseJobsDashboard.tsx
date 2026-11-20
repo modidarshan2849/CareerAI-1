@@ -564,9 +564,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
   const [maxMiles, setMaxMiles] = useState<number>(0);
 
   // Target titles in Preferences + staged removals when clicking green active buttons
-  const [targetTitlesText, setTargetTitlesText] = useState<string>(
-    "Senior Data Analyst, Lead Data Analyst, Senior Finance Data Analyst, Data Warehouse Analyst"
-  );
+  const [targetTitlesText, setTargetTitlesText] = useState<string>("");
   const [pendingRemovalTitles, setPendingRemovalTitles] = useState<string[]>([]);
 
   const [hideApplied, setHideApplied] = useState<boolean>(false);
