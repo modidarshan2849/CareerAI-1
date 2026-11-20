@@ -577,6 +577,52 @@ const DEFAULT_ROLES: ResumeExperienceRole[] = [
 ];
 
 export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
+  const [liveJobs, setLiveJobs] = useState<JobRecord[]>(initialJobs || []);
+  const [syncingLive, setSyncingLive] = useState<boolean>(false);
+  const [syncStatusBanner, setSyncStatusBanner] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setLiveJobs(initialJobs || []);
+  }, [initialJobs]);
+
+  const runLiveSync = React.useCallback(async (silent = false) => {
+    setSyncingLive(true);
+    try {
+      const res = await fetch("/api/jobs/live-sync", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data?.success) {
+        const removedSet = new Set<string>(data.removedUrls || []);
+        const added: JobRecord[] = Array.isArray(data.addedJobs) ? data.addedJobs : [];
+        setLiveJobs((prev) => {
+          const kept = prev.filter((j) => !removedSet.has(j.url || ""));
+          const seenUrls = new Set(kept.map((j) => j.url || ""));
+          const fresh = added.filter((j) => j.url && !seenUrls.has(j.url));
+          return [...fresh, ...kept];
+        });
+        try {
+          localStorage.setItem("careerai_last_live_sync", String(Date.now()));
+        } catch {}
+        if (!silent || data.addedCount > 0 || data.removedCount > 0) {
+          setSyncStatusBanner(
+            `Live Sync: +${data.addedCount || 0} new added · ${data.removedCount || 0} withdrawn removed`
+          );
+        }
+      }
+    } catch {
+      if (!silent) setSyncStatusBanner("Live sync retry queued.");
+    } finally {
+      setSyncingLive(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    try {
+      const last = Number(localStorage.getItem("careerai_last_live_sync") || "0");
+      if (Date.now() - last > 10 * 60 * 1000) {
+        runLiveSync(true);
+      }
+    } catch {}
+  }, [runLiveSync]);
   const [topView, setTopView] = useState<TopView>("ROLE_COMMAND");
   const [resumeModalOpen, setResumeModalOpen] = useState(false);
 
@@ -959,11 +1005,11 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
   );
 
   const enriched = useMemo(() => {
-    return (initialJobs || [])
+    return (liveJobs || [])
       .filter((j) => j.is_active !== false && !/\bjobs\s*$/i.test((j.title || "").trim()))
       .map((job) => ({ job, fit: evaluateCandidateScore(job, profileSkillsLower) }))
       .sort((a, b) => b.fit.score - a.fit.score);
-  }, [initialJobs, profileSkillsLower]);
+  }, [liveJobs, profileSkillsLower]);
 
   const fortune500Count = useMemo(() => enriched.filter((x) => x.fit.isFortune500).length, [enriched]);
 
@@ -1361,6 +1407,19 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                 >
                   Reset
                 </button>
+                <button
+                  type="button"
+                  disabled={syncingLive}
+                  onClick={() => runLiveSync(false)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white"
+                >
+                  {syncingLive ? "Syncing..." : "⟳ Sync Live"}
+                </button>
+                {syncStatusBanner && (
+                  <span className="text-[11px] font-medium text-emerald-300 bg-emerald-950/80 border border-emerald-700/60 px-2.5 py-1 rounded-md">
+                    {syncStatusBanner}
+                  </span>
+                )}
               </>
             )}
           </div>
