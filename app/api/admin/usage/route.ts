@@ -1,3 +1,43 @@
+
+const EXTERNAL_APIS_CATALOG = [
+  {
+    id: "usajobs",
+    name: "USAJOBS Search API",
+    envVars: ["USAJOBS_API_KEY", "USAJOBS_USER_AGENT"],
+    configured: Boolean(process.env.USAJOBS_API_KEY && process.env.USAJOBS_USER_AGENT),
+  },
+  {
+    id: "jsearch",
+    name: "JSearch (RapidAPI)",
+    envVars: ["RAPIDAPI_KEY", "JSEARCH_API_KEY"],
+    configured: Boolean(process.env.RAPIDAPI_KEY || process.env.JSEARCH_API_KEY),
+  },
+  {
+    id: "serper",
+    name: "Serper Google Search API",
+    envVars: ["SERPER_API_KEY"],
+    configured: Boolean(process.env.SERPER_API_KEY),
+  },
+  {
+    id: "serpapi",
+    name: "SerpAPI",
+    envVars: ["SERPAPI_KEY"],
+    configured: Boolean(process.env.SERPAPI_KEY),
+  },
+  {
+    id: "gemini",
+    name: "Gemini API",
+    envVars: ["GEMINI_API_KEY"],
+    configured: Boolean(process.env.GEMINI_API_KEY),
+  },
+  {
+    id: "supabase",
+    name: "Supabase Storage & DB",
+    envVars: ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"],
+    configured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+  },
+];
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PROVIDER_CONFIGS, ProviderKey } from "@/lib/usageTelemetry";

@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export type ProviderKey = "serper" | "jsearch" | "serpapi" | "gemini" | "bedrock" | "supabase";
+export type ProviderKey = "serper" | "jsearch" | "serpapi" | "usajobs" | "gemini" | "bedrock" | "anthropic" | "stripe" | "supabase";
 
 export interface ProviderQuotaConfig {
   label: string;
@@ -51,6 +51,27 @@ export const PROVIDER_CONFIGS: Record<ProviderKey, ProviderQuotaConfig> = {
     unitLabel: "API calls",
     monthlyFreeLimit: 500000,
     prodUnitCostUsd: 0.000002, // Pro base $25/mo + overages
+    isSharedPool: false,
+  },
+  usajobs: {
+    label: "USAJOBS Federal Jobs API",
+    unitLabel: "requests",
+    monthlyFreeLimit: 10000,
+    prodUnitCostUsd: 0,
+    isSharedPool: true,
+  },
+  anthropic: {
+    label: "Anthropic Claude (Resume & Profile AI)",
+    unitLabel: "1K tokens",
+    monthlyFreeLimit: 1000,
+    prodUnitCostUsd: 0.003,
+    isSharedPool: false,
+  },
+  stripe: {
+    label: "Stripe Billing & Subscriptions API",
+    unitLabel: "requests",
+    monthlyFreeLimit: 100000,
+    prodUnitCostUsd: 0,
     isSharedPool: false,
   },
 };

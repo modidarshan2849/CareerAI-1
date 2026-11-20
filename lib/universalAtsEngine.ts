@@ -890,6 +890,7 @@ async function querySingleWorkdayPage(target: AtsBoardTarget, searchText: string
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
+    await logApiUsage({ provider: "usajobs", endpoint: "/api/search", unitsUsed: 1, unitType: "request", statusCode: res.status });
     const data = await res.json();
     return data.jobPostings || [];
   } catch {

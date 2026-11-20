@@ -304,6 +304,34 @@ function workStatusDisplay(key: WorkStatusKey): string {
   return "Not Specified";
 }
 
+
+  const classifyMastersRequirement = (title: string, desc: string): "MANDATORY" | "PREFERRED" | "NONE" => {
+    const text = [title || "", desc || ""].join(" ").toLowerCase();
+    const hasMastersMention = new RegExp("\\b(master'?s|masters|m\\.s\\.|m\\.a\\.|mba)\\b", "i").test(text);
+    if (!hasMastersMention) return "NONE";
+    const isPreferred =
+      new RegExp("(master'?s|masters|m\\.s\\.|mba)[^.]{0,60}(preferred|plus|bonus|desired|nice to have|in lieu|or equivalent)", "i").test(text) ||
+      new RegExp("(preferred|plus|bonus|desired|nice to have)[^.]{0,60}(master'?s|masters|m\\.s\\.|mba)", "i").test(text) ||
+      new RegExp("(bachelor'?s|b\\.s\\.|b\\.c\\.a\\.|bca|undergraduate)[^.]{0,50}(or|/)[^.]{0,30}(master'?s|masters|m\\.s\\.|mba)", "i").test(text);
+    if (isPreferred) return "PREFERRED";
+    const isMandatory =
+      new RegExp("(required|must have|must possess|mandatory|minimum qualification|minimum requirement)[^.]{0,60}(master'?s|masters|m\\.s\\.|mba)", "i").test(text) ||
+      new RegExp("(master'?s|masters|m\\.s\\.|mba)[^.]{0,60}(required|must have|must possess|mandatory)", "i").test(text);
+    return isMandatory ? "MANDATORY" : "PREFERRED";
+  };
+
+  const extractYearsExperience = (title: string, desc: string): number | null => {
+    const text = [title || "", desc || ""].join(" ").toLowerCase();
+    const matches = [...text.matchAll(/(\d{1,2})\s*\+?\s*(?:-\s*\d{1,2})?\s*\+?\s*years?\s+(?:of\s+)?(?:relevant\s+|professional\s+|analytics?\s+|data\s+)?experience/g)];
+    if (matches.length === 0) {
+      if (/\b(staff|principal|lead|director|head of|vp)\b/.test(text)) return 8;
+      if (/\b(senior|sr\.?)\b/.test(text)) return 5;
+      return null;
+    }
+    const nums = matches.map((m) => Number(m[1])).filter((n) => n > 0 && n <= 30);
+    return nums.length ? Math.min(...nums) : null;
+  };
+
 function formatReqBadge(reqId?: string | null): string | null {
   if (!reqId) return null;
   const clean = reqId.trim();
@@ -558,6 +586,14 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
   const [trackFilter, setTrackFilter] = useState<"ALL" | "ANALYST" | "ENGINEER" | "BI" | "SCIENTIST">("ALL");
   const [workMode, setWorkMode] = useState<"ALL" | "Remote" | "Hybrid">("ALL");
   const [workStatus, setWorkStatus] = useState<"ALL" | WorkStatusKey>("ALL");
+  const [yearsExpFilter, setYearsExpFilter] = useState<"ALL" | "0-3" | "3-5" | "5-8" | "8+">("ALL");
+  const [hideGreenCard, setHideGreenCard] = useState<boolean>(false);
+  const [hideMandatoryMasters, setHideMandatoryMasters] = useState<boolean>(false);
+  const [selectedJobTitles, setSelectedJobTitles] = useState<string[]>([]);
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [openDropdown, setOpenDropdown] = useState<"TITLE" | "CITY" | null>(null);
+  const [titleDropdownSearch, setTitleDropdownSearch] = useState<string>("");
+  const [cityDropdownSearch, setCityDropdownSearch] = useState<string>("");
   const [minScore, setMinScore] = useState<number>(0);
   const [fortune500Only, setFortune500Only] = useState<boolean>(false);
   const [minSalaryFloor, setMinSalaryFloor] = useState<number>(0);
@@ -650,7 +686,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
         if (Array.isArray(parsedHist)) setHistoryLog(parsedHist);
       }
 
-      const savedPrefs = localStorage.getItem("careerai_prefs_v31");
+      const savedPrefs = localStorage.getItem("careerai_prefs_v32");
       if (savedPrefs) {
         const p = JSON.parse(savedPrefs);
         if (p.zone) setZone(p.zone);
@@ -785,7 +821,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
     }
 
     try {
-      localStorage.setItem("careerai_prefs_v31", JSON.stringify(payload));
+      localStorage.setItem("careerai_prefs_v32", JSON.stringify(payload));
       setValidationMessage({ type: "ok", text: "Preferences saved and Requisition Hub updated." });
       return true;
     } catch {
@@ -941,6 +977,29 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
     return { gcCitizen, notSpec };
   }, [enriched]);
 
+  const jobTitleOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const { job } of enriched) {
+      const clean = (job.title || "").replace(/\s*[-–|]\s*(remote|hybrid|onsite|us|usa).*$/i, "").trim();
+      if (clean) counts.set(clean, (counts.get(clean) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 60);
+  }, [enriched]);
+
+  const cityOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const { job } of enriched) {
+      const rawLoc = (job.location || "").split(";")[0].trim();
+      const city = job.is_remote && (!rawLoc || /^remote$/i.test(rawLoc)) ? "Remote" : rawLoc;
+      if (city) counts.set(city, (counts.get(city) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 60);
+  }, [enriched]);
+
   const filtered = useMemo(() => {
     const q = (search || "").trim().toLowerCase();
     const tq = (titleQuery || "").trim().toLowerCase();
@@ -955,6 +1014,25 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
         const matchesAnyTargetTitle = activeTitlesList.some((tt) => tLower.includes(tt.toLowerCase()));
         if (!matchesAnyTargetTitle) return false;
       }
+    if (hideGreenCard && detectWorkStatus(job) === "GC_OR_CITIZEN_REQ") return false;
+    if (hideMandatoryMasters && classifyMastersRequirement(job.title || "", job.description || "") === "MANDATORY") return false;
+    if (selectedJobTitles.length > 0) {
+      const jt = (job.title || "").toLowerCase();
+      if (!selectedJobTitles.some((sel) => jt.includes(sel.toLowerCase()))) return false;
+    }
+    if (selectedCities.length > 0) {
+      const rawLoc = (job.location || "").split(";")[0].trim();
+      const city = job.is_remote && (!rawLoc || /^remote$/i.test(rawLoc)) ? "Remote" : rawLoc;
+      if (!selectedCities.some((sel) => city.toLowerCase() === sel.toLowerCase())) return false;
+    }
+    if (yearsExpFilter !== "ALL") {
+      const yrs = extractYearsExperience(job.title || "", job.description || "");
+      if (yrs === null) return false;
+      if (yearsExpFilter === "0-3" && yrs > 3) return false;
+      if (yearsExpFilter === "3-5" && (yrs < 3 || yrs > 5)) return false;
+      if (yearsExpFilter === "5-8" && (yrs < 5 || yrs > 8)) return false;
+      if (yearsExpFilter === "8+" && yrs < 8) return false;
+    }
 
       if (zone !== "ALL") {
         const locStr = `${job.zone || ""} ${job.location || ""}`.toLowerCase();
@@ -995,7 +1073,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
 
       return true;
     });
-  }, [enriched, search, titleQuery, activeTitlesList, zone, trackFilter, workMode, workStatus, minScore, fortune500Only, minSalaryFloor, maxMiles, hideApplied, appliedMap]);
+  }, [enriched, search, titleQuery, activeTitlesList, zone, trackFilter, workMode, workStatus, minScore, fortune500Only, minSalaryFloor, maxMiles, hideApplied, appliedMap, yearsExpFilter, hideGreenCard, hideMandatoryMasters, selectedJobTitles, selectedCities]);
 
   const kpis = useMemo(() => {
     const total = filtered.length;
@@ -1184,7 +1262,13 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
     setTargetTitlesText("");
     setPendingRemovalTitles([]);
     setHideApplied(false);
-    try { localStorage.removeItem("careerai_prefs_v31"); } catch {}
+    setYearsExpFilter("ALL");
+    setHideGreenCard(false);
+    setHideMandatoryMasters(false);
+    setSelectedJobTitles([]);
+    setSelectedCities([]);
+    setOpenDropdown(null);
+    try { localStorage.removeItem("careerai_prefs_v32"); } catch {}
     setValidationMessage(null);
   };
 
@@ -1200,7 +1284,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base tracking-tight">CareerAI Intelligence</span>
                 <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                  v3.1
+                  v3.2
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
@@ -1286,21 +1370,6 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
         {topView === "ROLE_COMMAND" && (
           <div className="bg-white text-slate-700 border-b border-slate-200">
             <div className="max-w-[1480px] mx-auto px-6 py-2.5 flex flex-wrap items-center gap-2.5 text-xs">
-              <div className="flex items-center gap-1">
-                <label htmlFor="title-filter-input" className="text-slate-400 font-semibold mr-0.5">
-                  Title Filter:
-                </label>
-                <input
-                  id="title-filter-input"
-                  type="text"
-                  value={titleQuery ?? ""}
-                  onChange={(e) => setTitleQuery(e.target.value)}
-                  placeholder="Filter by job title..."
-                  className="w-40 rounded-md border border-slate-300 bg-slate-50 px-2 py-1 text-xs text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <span className="text-slate-300">|</span>
 
               <div className="flex items-center gap-1">
                 <span className="text-slate-400 font-semibold mr-0.5">Zone:</span>
@@ -1318,6 +1387,30 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                     }`}
                   >
                     {z.label}
+                  </button>
+                ))}
+              </div>
+
+              <span className="text-slate-300">|</span>
+
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-semibold mr-0.5">Exp:</span>
+                {([
+                  { id: "ALL", label: "All" },
+                  { id: "0-3", label: "0–3y" },
+                  { id: "3-5", label: "3–5y" },
+                  { id: "5-8", label: "5–8y" },
+                  { id: "8+", label: "8+y" }
+                ] as const).map((yp) => (
+                  <button
+                    key={yp.id}
+                    type="button"
+                    onClick={() => setYearsExpFilter(yp.id)}
+                    className={`px-2 py-1 rounded-md font-medium transition ${
+                      yearsExpFilter === yp.id ? "bg-violet-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {yp.label}
                   </button>
                 ))}
               </div>
@@ -1417,7 +1510,8 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                 <span className="text-slate-400 font-semibold mr-0.5">Work Status:</span>
                 {[
                   { id: "ALL", label: "All" },
-                  { id: "NOT_SPECIFIED", label: `Not Specified (${statusCounts.notSpec})` }
+                  { id: "NOT_SPECIFIED", label: `Not Specified (${statusCounts.notSpec})` },
+                  { id: "GC_OR_CITIZEN_REQ", label: `Green Card (${statusCounts.gcCitizen})` }
                 ].map((ws) => (
                   <button
                     key={ws.id}
@@ -1468,15 +1562,188 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                 ★ Fortune 500 ({fortune500Count})
               </button>
 
-              <label className="ml-auto inline-flex items-center gap-1.5 text-slate-600 font-medium cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hideApplied}
-                  onChange={(e) => setHideApplied(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600"
-                />
-                Hide Applied ({Object.values(appliedMap).filter(Boolean).length})
-              </label>
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                {/* Multi-Select Job Title Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenDropdown((prev) => (prev === "TITLE" ? null : "TITLE"))}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                      selectedJobTitles.length > 0
+                        ? "border-indigo-500 bg-indigo-50 text-indigo-800"
+                        : "border-slate-300 bg-slate-50 text-slate-800 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span>
+                      {selectedJobTitles.length === 0
+                        ? `Job Title: All (${jobTitleOptions.length})`
+                        : `Job Title (${selectedJobTitles.length} selected)`}
+                    </span>
+                    <span className="text-[10px]">▼</span>
+                  </button>
+
+                  {openDropdown === "TITLE" && (
+                    <div className="absolute left-0 mt-1.5 w-72 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl z-40 space-y-2">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <input
+                          type="text"
+                          value={titleDropdownSearch}
+                          onChange={(e) => setTitleDropdownSearch(e.target.value)}
+                          placeholder="Filter titles..."
+                          className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                        {selectedJobTitles.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedJobTitles([])}
+                            className="shrink-0 text-[11px] font-semibold text-rose-600 hover:underline px-1"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {jobTitleOptions
+                          .filter(([t]) => t.toLowerCase().includes(titleDropdownSearch.trim().toLowerCase()))
+                          .map(([title, count]) => {
+                            const checked = selectedJobTitles.includes(title);
+                            return (
+                              <label
+                                key={title}
+                                className="flex items-center justify-between gap-2 py-1.5 px-1 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+                              >
+                                <span className="flex items-center gap-2 truncate">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() =>
+                                      setSelectedJobTitles((prev) =>
+                                        checked ? prev.filter((x) => x !== title) : [...prev, title]
+                                      )
+                                    }
+                                    className="rounded border-slate-300 text-indigo-600"
+                                  />
+                                  <span className="truncate">{title}</span>
+                                </span>
+                                <span className="shrink-0 text-[11px] text-slate-400">({count})</span>
+                              </label>
+                            );
+                          })}
+                      </div>
+                      <div className="pt-1 border-t border-slate-100 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setOpenDropdown(null)}
+                          className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-600"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Multi-Select City Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenDropdown((prev) => (prev === "CITY" ? null : "CITY"))}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                      selectedCities.length > 0
+                        ? "border-indigo-500 bg-indigo-50 text-indigo-800"
+                        : "border-slate-300 bg-slate-50 text-slate-800 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span>
+                      {selectedCities.length === 0
+                        ? `City: All (${cityOptions.length})`
+                        : `City (${selectedCities.length} selected)`}
+                    </span>
+                    <span className="text-[10px]">▼</span>
+                  </button>
+
+                  {openDropdown === "CITY" && (
+                    <div className="absolute left-0 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl z-40 space-y-2">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <input
+                          type="text"
+                          value={cityDropdownSearch}
+                          onChange={(e) => setCityDropdownSearch(e.target.value)}
+                          placeholder="Filter cities..."
+                          className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                        {selectedCities.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCities([])}
+                            className="shrink-0 text-[11px] font-semibold text-rose-600 hover:underline px-1"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {cityOptions
+                          .filter(([c]) => c.toLowerCase().includes(cityDropdownSearch.trim().toLowerCase()))
+                          .map(([city, count]) => {
+                            const checked = selectedCities.includes(city);
+                            return (
+                              <label
+                                key={city}
+                                className="flex items-center justify-between gap-2 py-1.5 px-1 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+                              >
+                                <span className="flex items-center gap-2 truncate">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() =>
+                                      setSelectedCities((prev) =>
+                                        checked ? prev.filter((x) => x !== city) : [...prev, city]
+                                      )
+                                    }
+                                    className="rounded border-slate-300 text-indigo-600"
+                                  />
+                                  <span className="truncate">{city}</span>
+                                </span>
+                                <span className="shrink-0 text-[11px] text-slate-400">({count})</span>
+                              </label>
+                            );
+                          })}
+                      </div>
+                      <div className="pt-1 border-t border-slate-100 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setOpenDropdown(null)}
+                          className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-600"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <label className="inline-flex items-center gap-1.5 text-slate-700 font-medium cursor-pointer bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 hover:bg-slate-100">
+                  <input
+                    type="checkbox"
+                    checked={hideGreenCard}
+                    onChange={(e) => setHideGreenCard(e.target.checked)}
+                    className="rounded border-slate-300 text-rose-600"
+                  />
+                  Hide Green Card ({statusCounts.gcCitizen})
+                </label>
+
+                <label className="inline-flex items-center gap-1.5 text-slate-700 font-medium cursor-pointer bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 hover:bg-slate-100">
+                  <input
+                    type="checkbox"
+                    checked={hideMandatoryMasters}
+                    onChange={(e) => setHideMandatoryMasters(e.target.checked)}
+                    className="rounded border-slate-300 text-red-600"
+                  />
+                  Hide Mandatory Master&apos;s
+                </label>
+
+              </div>
             </div>
           </div>
         )}
@@ -2118,7 +2385,42 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
                           )}
                         </div>
                         <div className="text-sm font-bold text-slate-900 mt-0.5 line-clamp-1">
-                          {job.title}
+                          {(() => {
+        const req = classifyMastersRequirement(job.title || "", job.description || "");
+        if (req === "MANDATORY") {
+          return (
+            <span className="mr-1.5 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700 border border-red-300">
+              Mandatory Master&apos;s
+            </span>
+          );
+        }
+        if (req === "PREFERRED") {
+          return (
+            <span className="mr-1.5 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+              Master&apos;s Preferred
+            </span>
+          );
+        }
+        return null;
+      })()}{job.title}
+                        {(() => {
+                          const req = classifyMastersRequirement(job.title || "", job.description || "");
+                          if (req === "MANDATORY") {
+                            return (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700 border border-red-300 align-middle">
+                                Mandatory Master&apos;s Required
+                              </span>
+                            );
+                          }
+                          if (req === "PREFERRED") {
+                            return (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200 align-middle">
+                                Master&apos;s Preferred
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5 truncate">
                           {job.location || "United States"} ({fit.distanceLabel}) •{" "}
