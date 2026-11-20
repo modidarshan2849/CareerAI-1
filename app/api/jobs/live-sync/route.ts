@@ -12,6 +12,7 @@ const NON_US_REGEX =
   /\b(india|hyderabad|bengaluru|bangalore|pune|chennai|mumbai|telangana|malaysia|penang|netherlands|united kingdom|london|canada|toronto|poland|philippines|manila|singapore|germany|wiesbaden)\b/i;
 
 const EXCLUDE_TITLE_REGEX = /\b(intern|internship|co-op|coop)\b/i;
+const TARGET_ROLE_REGEX = /\b(data|analyst|analytics|bi|business intelligence|sql|snowflake|project|program|product|finance|financial|risk|strategy|architect|engineer|ai)\b/i;
 
 interface CandidateJob {
   req_id: string | null;
@@ -40,6 +41,8 @@ function normalizePair(company: string, title: string): string {
 function extractReqId(url: string): string | null {
   const spg = url.match(/\/jobs\/(\d+)/);
   if (spg) return `SPG-${spg[1]}`;
+  const syn = url.match(/\/49398\/(\d+)/);
+  if (syn) return `SYN-${syn[1]}`;
   const jk = url.match(/[?&]jk=([a-z0-9]+)/i);
   if (jk) return `IND-${jk[1]}`;
   const wd = url.match(/_([A-Z0-9-]{4,20})(?:[/?#]|$)/);
@@ -52,7 +55,26 @@ function extractReqId(url: string): string | null {
 }
 
 function extractKeywords(text: string): string[] {
-  const dict = ["SQL", "Snowflake", "Python", "Power BI", "Tableau", "Excel", "ETL", "AWS", "BI", "Analytics"];
+  const dict = [
+    "SQL",
+    "Snowflake",
+    "Python",
+    "Power BI",
+    "Tableau",
+    "Excel",
+    "ETL",
+    "AWS",
+    "BI",
+    "Analytics",
+    "Agile",
+    "Scrum",
+    "PMP",
+    "Jira",
+    "Roadmap",
+    "Stakeholder",
+    "Project Management",
+    "Program Management",
+  ];
   const lower = text.toLowerCase();
   return dict.filter((k) => lower.includes(k.toLowerCase()));
 }
@@ -74,11 +96,74 @@ function inferZoneAndMode(text: string): { zone: string; is_remote: boolean; wor
 function computeInitialScore(title: string, company: string, location: string): number {
   let score = 84;
   const hay = `${title} ${company} ${location}`.toLowerCase();
-  if (/senior|lead|principal|staff|manager/.test(hay)) score += 6;
-  if (/snowflake|sql|bi|analytics|financial/.test(hay)) score += 4;
-  if (/s&p global|synchrony|capital one|dominion|carmax|freddie mac|fannie mae|leidos|geico/.test(hay)) score += 3;
+  if (/senior|lead|principal|staff|manager|director/.test(hay)) score += 6;
+  if (/snowflake|sql|bi|analytics|financial|project|program|scrum|agile/.test(hay)) score += 4;
+  if (/s&p global|synchrony|capital one|dominion|carmax|freddie mac|fannie mae|leidos|geico|comcast|cigna/.test(hay))
+    score += 3;
   if (/virginia|mclean|richmond|arlington|remote/.test(hay)) score += 2;
   return Math.min(98, score);
+}
+
+// 1. Synchrony US Direct Feed (0 paid API credits) across Data & Project/Program keywords
+async function fetchSynchronyUSDirect(): Promise<CandidateJob[]> {
+  const keywordsList = ["Data", "Project", "Analyst"];
+  const collected: CandidateJob[] = [];
+
+  for (const kw of keywordsList) {
+    const apiUrl = `https://www.synchronycareers.com/search-jobs/results?ActiveFacetID=0&CurrentPage=1&RecordsPerPage=30&Distance=0&RadiusUnitType=0&Keywords=${encodeURIComponent(
+      kw
+    )}&Location=United+States&ShowRadius=False&IsPagination=False&FacetType=0&SearchResultsModuleName=Search+Results&SearchFiltersModuleName=Search+Filters&SortCriteria=0&SortDirection=0&SearchType=1&LocationType=2&LocationPath=6252001&OrganizationIds=49398`;
+    try {
+      const res = await fetch(apiUrl, {
+        headers: {
+          "User-Agent": UA,
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        signal: AbortSignal.timeout(5500),
+      });
+      if (!res.ok) continue;
+      const data = await res.json().catch(() => null);
+      const html = data?.results || "";
+      if (!html) continue;
+
+      for (const m of html.matchAll(/<a[^>]+href="(\/job\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
+        const path = m[1];
+        const rawBlock = m[2].replace(/&amp;/g, "&").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (!rawBlock || rawBlock.length < 4) continue;
+        const fullUrl = `https://www.synchronycareers.com${path}`;
+        if (NON_US_REGEX.test(`${rawBlock} ${path}`) || EXCLUDE_TITLE_REGEX.test(rawBlock)) continue;
+        if (!TARGET_ROLE_REGEX.test(rawBlock)) continue;
+
+        const locDateMatch = rawBlock.match(/^(.*?)\s+([A-Z][a-zA-Z.\s]+,\s*[A-Z]{2})\s+(\d{2}\/\d{2}\/\d{4})$/);
+        const title = locDateMatch ? locDateMatch[1].trim() : rawBlock.replace(/\s+\d{2}\/\d{2}\/\d{4}$/, "").trim();
+        const location = locDateMatch ? locDateMatch[2].trim() : "United States";
+        const postedLabel = locDateMatch ? `Posted ${locDateMatch[3]}` : "Synchrony Live";
+        const meta = inferZoneAndMode(`${title} ${location}`);
+
+        collected.push({
+          req_id: extractReqId(fullUrl),
+          title,
+          company: "Synchrony",
+          location,
+          url: fullUrl,
+          score: computeInitialScore(title, "Synchrony", location),
+          is_remote: meta.is_remote,
+          work_mode: meta.work_mode,
+          zone: meta.zone,
+          sponsorship_status: "Not Specified",
+          sponsorship_code: "NOT_SPECIFIED",
+          posted_label: postedLabel,
+          keywords: extractKeywords(title),
+          source: "Synchrony Direct",
+          description: `${title} at Synchrony (${location})`,
+        });
+      }
+    } catch {
+      // Continue to next keyword
+    }
+  }
+  return collected;
 }
 
 async function fetchSerperBatch(
@@ -108,7 +193,7 @@ async function fetchSerperBatch(
     const results: CandidateJob[] = [];
     for (const r of data.organic || []) {
       const link = String(r.link || "").trim();
-      const rawTitle = String(r.title || "").replace(/\s*[-|].*$/, "").trim();
+      const rawTitle = String(r.title || "").replace(/\s*[-|@].*$/, "").trim();
       const snippet = String(r.snippet || "");
       const combined = `${rawTitle} ${snippet} ${link}`;
       if (!urlFilter.test(link)) continue;
@@ -118,12 +203,21 @@ async function fetchSerperBatch(
       if (company === "Workday Enterprise") {
         const hostMatch = link.match(/^https?:\/\/([^.]+)\.wd\d+\.myworkdayjobs\.com/i);
         if (hostMatch) {
-          company = hostMatch[1].replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          const slug = hostMatch[1].toLowerCase();
+          company =
+            slug === "spgi"
+              ? "S&P Global"
+              : slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
         }
+      } else if (company === "Ashby / Greenhouse") {
+        const ghMatch = link.match(/boards\.greenhouse\.io\/([^/]+)/i);
+        const ashMatch = link.match(/jobs\.ashbyhq\.com\/([^/]+)/i);
+        const slug = (ghMatch?.[1] || ashMatch?.[1] || "").trim();
+        if (slug) company = slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       }
 
       const locMatch = combined.match(
-        /\b(New York, NY|McLean, VA|Richmond, VA|Charlotte, NC|Stamford, CT|Virginia|Remote|United States)\b/i
+        /\b(New York, NY|McLean, VA|Richmond, VA|Charlotte, NC|Stamford, CT|Denver, CO|Virginia|Remote|United States)\b/i
       );
       const location = locMatch ? locMatch[0] : "United States";
       const meta = inferZoneAndMode(`${rawTitle} ${snippet} ${location}`);
@@ -201,13 +295,13 @@ async function fetchLinkedInGuest24h(keywords: string): Promise<CandidateJob[]> 
   }
 }
 
-async function fetchUsajobsLive(): Promise<CandidateJob[]> {
+async function fetchUsajobsLive(keyword: string): Promise<CandidateJob[]> {
   const apiKey = (process.env.USAJOBS_API_KEY || "").trim();
   const ua = (process.env.USAJOBS_USER_AGENT || "modi.darshan268@gmail.com").trim();
   if (!apiKey) return [];
   try {
     const res = await fetch(
-      "https://data.usajobs.gov/api/search?Keyword=Data%20Analyst&ResultsPerPage=15",
+      `https://data.usajobs.gov/api/search?Keyword=${encodeURIComponent(keyword)}&ResultsPerPage=15`,
       {
         headers: { "Authorization-Key": apiKey, "User-Agent": ua, Host: "data.usajobs.gov" },
         signal: AbortSignal.timeout(6000),
@@ -268,54 +362,71 @@ export async function POST() {
 
   const nowIso = new Date().toISOString();
 
-  // 1. Discover fresh US roles across S&P Global, Synchrony, Indeed, Fortune 500 Workday, LinkedIn (24h), and USAJOBS
-  const [spg1, spg2, syn, ind, wd, li, usa] = await Promise.all([
-    fetchSerperBatch(
-      "S&P Global Direct",
-      "S&P Global",
-      "site:careers.spglobal.com Data Analyst New York",
-      /careers\.spglobal\.com\/jobs\/\d+/i
-    ),
-    fetchSerperBatch(
-      "S&P Global Direct",
-      "S&P Global",
-      "site:careers.spglobal.com Analyst Virginia",
-      /careers\.spglobal\.com\/jobs\/\d+/i
-    ),
-    fetchSerperBatch(
-      "Synchrony Direct",
-      "Synchrony",
-      "site:synchronycareers.com Data Analyst Remote",
-      /synchronycareers\.com\/job\//i
-    ),
-    fetchSerperBatch(
-      "Indeed Live",
-      "Indeed Employer",
-      "site:indeed.com/viewjob Senior Data Analyst Remote",
-      /indeed\.com\/viewjob/i
-    ),
-    fetchSerperBatch(
-      "Workday Enterprise",
-      "Workday Enterprise",
-      "site:myworkdayjobs.com Senior Data Analyst",
-      /myworkdayjobs\.com\/.+\/job\//i
-    ),
-    fetchLinkedInGuest24h("Senior Data Analyst Snowflake"),
-    fetchUsajobsLive(),
+  // Rotate across 4 multi-role tracks (Data Analyst, Project Manager, BI/Analytics Engineer, Financial/Program)
+  const trackIndex = Math.floor(Date.now() / (10 * 60 * 1000)) % 4;
+
+  const titleTracks = [
+    // Track 0: Senior & Lead Data Analysts + S&P Global
+    [
+      { label: "S&P Global Direct", fallback: "S&P Global", q: "site:careers.spglobal.com Data Analyst New York", rx: /careers\.spglobal\.com\/jobs\/\d+/i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Lead Data Analyst"', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:jobs.ashbyhq.com "Analytics Engineer"', rx: /jobs\.ashbyhq\.com\/[^/]+\/[a-z0-9-]+/i },
+      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Senior Data Analyst" Remote', rx: /indeed\.com\/viewjob/i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: "site:myworkdayjobs.com Senior Data Analyst", rx: /myworkdayjobs\.com\/.+\/job\//i },
+    ],
+    // Track 1: Technical & IT Project Managers + Program Managers
+    [
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Technical Project Manager"', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Senior Project Manager" Virginia', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:boards.greenhouse.io "Technical Program Manager"', rx: /boards\.greenhouse\.io\/[^/]+\/jobs\/\d+/i },
+      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Senior Project Manager" Remote', rx: /indeed\.com\/viewjob/i },
+      { label: "S&P Global Direct", fallback: "S&P Global", q: 'site:careers.spglobal.com "Project Manager"', rx: /careers\.spglobal\.com\/jobs\/\d+/i },
+    ],
+    // Track 2: Business Intelligence & Analytics Engineering
+    [
+      { label: "S&P Global Direct", fallback: "S&P Global", q: "site:careers.spglobal.com Analyst Virginia", rx: /careers\.spglobal\.com\/jobs\/\d+/i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Business Intelligence Analyst"', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:boards.greenhouse.io "Senior Data Analyst"', rx: /boards\.greenhouse\.io\/[^/]+\/jobs\/\d+/i },
+      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Business Intelligence Analyst" Remote', rx: /indeed\.com\/viewjob/i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Analytics Engineer"', rx: /myworkdayjobs\.com\/.+\/job\//i },
+    ],
+    // Track 3: Financial Data Analysts & Program Leads
+    [
+      { label: "S&P Global Direct", fallback: "S&P Global", q: 'site:careers.spglobal.com "Senior Analyst" Finance', rx: /careers\.spglobal\.com\/jobs\/\d+/i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Financial Data Analyst"', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Program Manager" Data', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Lead Data Analyst" Remote', rx: /indeed\.com\/viewjob/i },
+      { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:boards.greenhouse.io "Business Intelligence"', rx: /boards\.greenhouse\.io\/[^/]+\/jobs\/\d+/i },
+    ],
+  ];
+
+  const activeTrack = titleTracks[trackIndex];
+  const linkedInQueries = [
+    "Senior Data Analyst Snowflake",
+    "Technical Project Manager",
+    "Lead Data Analyst SQL",
+    "Senior Program Manager",
+  ];
+  const usajobsKeywords = ["Data Analyst", "Project Manager", "Business Intelligence", "Program Analyst"];
+
+  const [synDirect, serperResults, li, usa] = await Promise.all([
+    fetchSynchronyUSDirect(),
+    Promise.all(activeTrack.map((t) => fetchSerperBatch(t.label, t.fallback, t.q, t.rx))).then((arr) => arr.flat()),
+    fetchLinkedInGuest24h(linkedInQueries[trackIndex]),
+    fetchUsajobsLive(usajobsKeywords[trackIndex]),
   ]);
 
   const deduped = new Map<string, CandidateJob>();
-  for (const job of [...spg1, ...spg2, ...syn, ...ind, ...wd, ...li, ...usa]) {
+  for (const job of [...synDirect, ...serperResults, ...li, ...usa]) {
     const key = normalizePair(job.company, job.title);
     if (!deduped.has(key)) deduped.set(key, job);
   }
   const candidates = Array.from(deduped.values());
 
-  // Load existing active URLs & company/title pairs from verified_jobs to prevent duplicates
   const { data: existingRows } = await supabase
     .from("verified_jobs")
     .select("url, company, title")
-    .limit(3000);
+    .limit(4000);
 
   const existingUrlSet = new Set<string>();
   const existingPairSet = new Set<string>();
@@ -373,7 +484,7 @@ export async function POST() {
       .in("url", matchedExistingUrls);
   }
 
-  // 2. Sweep the 20 oldest-verified active jobs in Supabase to purge mid-day withdrawn postings (0 search credits)
+  // Sweep the 20 oldest-verified active jobs in Supabase to purge mid-day withdrawn postings (0 search credits)
   const { data: staleCandidates } = await supabase
     .from("verified_jobs")
     .select("id, url")
@@ -413,6 +524,7 @@ export async function POST() {
 
   return NextResponse.json({
     success: true,
+    trackIndex,
     syncedAt: nowIso,
     discoveredTotal: candidates.length,
     addedCount: insertedRows.length,
