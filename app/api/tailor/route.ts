@@ -1,3 +1,4 @@
+import { logApiUsage } from "@/lib/usageTelemetry";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -229,6 +230,7 @@ ${targetJobDescription}`;
       }
     }
 
+    await logApiUsage({ provider: "gemini", endpoint: "/api/tailor", unitsUsed: 3.0, unitType: "tokens", userId: "active_user" });
     return NextResponse.json({ success: true, data: parsed, source: "gemini_synthesis" });
   } catch (err: any) {
     console.warn("[Tailor Fallback Activated]:", err?.message);
