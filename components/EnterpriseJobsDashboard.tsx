@@ -1331,7 +1331,7 @@ export default function EnterpriseJobsDashboard({ initialJobs }: Props) {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base tracking-tight">CareerAI Intelligence</span>
                 <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                  v3.2
+                  v3.4
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
