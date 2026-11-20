@@ -9,10 +9,14 @@ const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 const NON_US_REGEX =
-  /\b(india|hyderabad|bengaluru|bangalore|pune|chennai|mumbai|telangana|malaysia|penang|netherlands|united kingdom|london|canada|toronto|poland|philippines|manila|singapore|germany|wiesbaden)\b/i;
+  /\b(india|hyderabad|bengaluru|bangalore|pune|chennai|mumbai|telangana|malaysia|penang|netherlands|united kingdom|london|canada|toronto|poland|philippines|manila|singapore|germany|wiesbaden|mexico|costa rica|hong kong|tokyo|sydney)\b/i;
 
-const EXCLUDE_TITLE_REGEX = /\b(intern|internship|co-op|coop)\b/i;
-const TARGET_ROLE_REGEX = /\b(data|analyst|analytics|bi|business intelligence|sql|snowflake|project|program|product|finance|financial|risk|strategy|architect|engineer|ai)\b/i;
+const LANDING_PAGE_REGEX = /\b(jobs & positions|search jobs|career opportunities|all jobs|careers home)\b/i;
+const EXCLUDE_TITLE_REGEX = /\b(intern|internship|co-op|coop|administrative assistant|wellness coordinator|practice development)\b/i;
+
+// Strict Analyst / BI / Data / Financial Analytics filter so non-analyst roles never pollute the Analyst feed
+const ANALYST_FIT_REGEX =
+  /\b(data analyst|business intelligence|bi analyst|analytics|analytics engineer|data engineer|financial analyst|finance analyst|reporting analyst|insights analyst|decision science|quantitative analyst|risk analyst|data governance|data quality|sql|snowflake|tableau|power bi|dataops)\b/i;
 
 interface CandidateJob {
   req_id: string | null;
@@ -66,14 +70,8 @@ function extractKeywords(text: string): string[] {
     "AWS",
     "BI",
     "Analytics",
-    "Agile",
-    "Scrum",
-    "PMP",
-    "Jira",
-    "Roadmap",
-    "Stakeholder",
-    "Project Management",
-    "Program Management",
+    "Financial Modeling",
+    "Data Governance",
   ];
   const lower = text.toLowerCase();
   return dict.filter((k) => lower.includes(k.toLowerCase()));
@@ -83,7 +81,7 @@ function inferZoneAndMode(text: string): { zone: string; is_remote: boolean; wor
   const lower = text.toLowerCase();
   const isRemote = /\bremote\b/.test(lower);
   const isVaDmv =
-    /\b(virginia|va|richmond|mclean|arlington|reston|norfolk|virginia beach|dc|washington|maryland|md|bethesda)\b/.test(
+    /\b(virginia|va|richmond|mclean|arlington|reston|norfolk|virginia beach|dc|washington|maryland|md|bethesda|charlotte|nc)\b/.test(
       lower
     );
   return {
@@ -94,19 +92,23 @@ function inferZoneAndMode(text: string): { zone: string; is_remote: boolean; wor
 }
 
 function computeInitialScore(title: string, company: string, location: string): number {
-  let score = 84;
+  let score = 85;
   const hay = `${title} ${company} ${location}`.toLowerCase();
-  if (/senior|lead|principal|staff|manager|director/.test(hay)) score += 6;
-  if (/snowflake|sql|bi|analytics|financial|project|program|scrum|agile/.test(hay)) score += 4;
-  if (/s&p global|synchrony|capital one|dominion|carmax|freddie mac|fannie mae|leidos|geico|comcast|cigna/.test(hay))
+  if (/senior|lead|principal|staff|manager|director/.test(hay)) score += 5;
+  if (/snowflake|sql|bi|analytics|financial/.test(hay)) score += 4;
+  if (
+    /s&p global|synchrony|sysco|jpmorgan|capital one|wells fargo|bank of america|citigroup|citi|goldman|morgan stanley|pnc|truist|dominion|carmax|freddie mac|fannie mae/.test(
+      hay
+    )
+  )
     score += 3;
   if (/virginia|mclean|richmond|arlington|remote/.test(hay)) score += 2;
   return Math.min(98, score);
 }
 
-// 1. Synchrony US Direct Feed (0 paid API credits) across Data & Project/Program keywords
+// 1. Synchrony US Direct Feed (0 paid API credits) — strictly Analyst/BI/Data roles
 async function fetchSynchronyUSDirect(): Promise<CandidateJob[]> {
-  const keywordsList = ["Data", "Project", "Analyst"];
+  const keywordsList = ["Analyst", "Data", "Analytics", "Business Intelligence"];
   const collected: CandidateJob[] = [];
 
   for (const kw of keywordsList) {
@@ -133,14 +135,16 @@ async function fetchSynchronyUSDirect(): Promise<CandidateJob[]> {
         if (!rawBlock || rawBlock.length < 4) continue;
         const fullUrl = `https://www.synchronycareers.com${path}`;
         if (NON_US_REGEX.test(`${rawBlock} ${path}`) || EXCLUDE_TITLE_REGEX.test(rawBlock)) continue;
-        if (!TARGET_ROLE_REGEX.test(rawBlock)) continue;
 
+        // Parse trailing "City, ST MM/DD/YYYY" cleanly
         const locDateMatch = rawBlock.match(/^(.*?)\s+([A-Z][a-zA-Z.\s]+,\s*[A-Z]{2})\s+(\d{2}\/\d{2}\/\d{4})$/);
-        const title = locDateMatch ? locDateMatch[1].trim() : rawBlock.replace(/\s+\d{2}\/\d{2}\/\d{4}$/, "").trim();
+        const title = (locDateMatch ? locDateMatch[1] : rawBlock.replace(/\s+\d{2}\/\d{2}\/\d{4}$/, "")).trim();
         const location = locDateMatch ? locDateMatch[2].trim() : "United States";
         const postedLabel = locDateMatch ? `Posted ${locDateMatch[3]}` : "Synchrony Live";
-        const meta = inferZoneAndMode(`${title} ${location}`);
 
+        if (!ANALYST_FIT_REGEX.test(title)) continue;
+
+        const meta = inferZoneAndMode(`${title} ${location}`);
         collected.push({
           req_id: extractReqId(fullUrl),
           title,
@@ -160,17 +164,47 @@ async function fetchSynchronyUSDirect(): Promise<CandidateJob[]> {
         });
       }
     } catch {
-      // Continue to next keyword
+      // Continue
     }
   }
   return collected;
+}
+
+function inferCompanyFromUrl(link: string, fallback: string): string {
+  const lower = link.toLowerCase();
+  if (lower.includes("spglobal.com") || lower.includes("spgi.wd")) return "S&P Global";
+  if (lower.includes("synchronycareers.com") || lower.includes("synchrony.wd")) return "Synchrony";
+  if (lower.includes("sysco.com") || lower.includes("sysco.wd")) return "Sysco";
+  if (lower.includes("jpmorgan") || lower.includes("jpmc.")) return "JPMorgan Chase";
+  if (lower.includes("capitalone")) return "Capital One";
+  if (lower.includes("wellsfargo")) return "Wells Fargo";
+  if (lower.includes("bankofamerica")) return "Bank of America";
+  if (lower.includes("citi.com") || lower.includes("citigroup")) return "Citigroup";
+  if (lower.includes("goldmansachs")) return "Goldman Sachs";
+  if (lower.includes("morganstanley")) return "Morgan Stanley";
+  if (lower.includes("pnc.com") || lower.includes("pnc.wd")) return "PNC Financial";
+  if (lower.includes("truist")) return "Truist";
+
+  if (fallback === "Workday Enterprise") {
+    const hostMatch = link.match(/^https?:\/\/([^.]+)\.wd\d+\.myworkdayjobs\.com/i);
+    if (hostMatch) {
+      return hostMatch[1].replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+  } else if (fallback === "Ashby / Greenhouse") {
+    const ghMatch = link.match(/boards\.greenhouse\.io\/([^/]+)/i);
+    const ashMatch = link.match(/jobs\.ashbyhq\.com\/([^/]+)/i);
+    const slug = (ghMatch?.[1] || ashMatch?.[1] || "").trim();
+    if (slug) return slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return fallback;
 }
 
 async function fetchSerperBatch(
   label: string,
   companyFallback: string,
   query: string,
-  urlFilter: RegExp
+  urlFilter: RegExp,
+  page = 1
 ): Promise<CandidateJob[]> {
   const key = (process.env.SERPER_API_KEY || "").trim();
   if (!key) return [];
@@ -178,7 +212,7 @@ async function fetchSerperBatch(
     const res = await fetch("https://google.serper.dev/search", {
       method: "POST",
       headers: { "X-API-KEY": key, "Content-Type": "application/json" },
-      body: JSON.stringify({ q: query, num: 10 }),
+      body: JSON.stringify({ q: query, num: 10, page }),
       signal: AbortSignal.timeout(6000),
     });
     await logApiUsage({
@@ -198,26 +232,12 @@ async function fetchSerperBatch(
       const combined = `${rawTitle} ${snippet} ${link}`;
       if (!urlFilter.test(link)) continue;
       if (NON_US_REGEX.test(combined) || EXCLUDE_TITLE_REGEX.test(rawTitle)) continue;
+      if (LANDING_PAGE_REGEX.test(`${rawTitle} ${snippet}`)) continue;
+      if (!ANALYST_FIT_REGEX.test(`${rawTitle} ${snippet}`)) continue;
 
-      let company = companyFallback;
-      if (company === "Workday Enterprise") {
-        const hostMatch = link.match(/^https?:\/\/([^.]+)\.wd\d+\.myworkdayjobs\.com/i);
-        if (hostMatch) {
-          const slug = hostMatch[1].toLowerCase();
-          company =
-            slug === "spgi"
-              ? "S&P Global"
-              : slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-        }
-      } else if (company === "Ashby / Greenhouse") {
-        const ghMatch = link.match(/boards\.greenhouse\.io\/([^/]+)/i);
-        const ashMatch = link.match(/jobs\.ashbyhq\.com\/([^/]+)/i);
-        const slug = (ghMatch?.[1] || ashMatch?.[1] || "").trim();
-        if (slug) company = slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-      }
-
+      const company = inferCompanyFromUrl(link, companyFallback);
       const locMatch = combined.match(
-        /\b(New York, NY|McLean, VA|Richmond, VA|Charlotte, NC|Stamford, CT|Denver, CO|Virginia|Remote|United States)\b/i
+        /\b(New York, NY|McLean, VA|Richmond, VA|Charlotte, NC|Stamford, CT|Houston, TX|Denver, CO|Chicago, IL|Wilmington, DE|Columbus, OH|Virginia|Remote|United States)\b/i
       );
       const location = locMatch ? locMatch[0] : "United States";
       const meta = inferZoneAndMode(`${rawTitle} ${snippet} ${location}`);
@@ -269,6 +289,7 @@ async function fetchLinkedInGuest24h(keywords: string): Promise<CandidateJob[]> 
       const link = (block.match(/href="(https:\/\/www\.linkedin\.com\/jobs\/view\/[^"?]+)/)?.[1] || "").trim();
       if (!title || !link) continue;
       if (NON_US_REGEX.test(`${title} ${location}`) || EXCLUDE_TITLE_REGEX.test(title)) continue;
+      if (!ANALYST_FIT_REGEX.test(title)) continue;
       const meta = inferZoneAndMode(`${title} ${location}`);
       const cleanCompany = company || "LinkedIn Employer";
       jobs.push({
@@ -362,56 +383,60 @@ export async function POST() {
 
   const nowIso = new Date().toISOString();
 
-  // Rotate across 4 multi-role tracks (Data Analyst, Project Manager, BI/Analytics Engineer, Financial/Program)
-  const trackIndex = Math.floor(Date.now() / (10 * 60 * 1000)) % 4;
+  // Rotate across 4 rich Analyst/BI/Enterprise tracks + alternate page 1 & page 2 so every sync uncovers net-new roles
+  const cycle = Math.floor(Date.now() / (10 * 60 * 1000));
+  const trackIndex = cycle % 4;
+  const serperPage = Math.floor(cycle / 4) % 2 === 0 ? 1 : 2;
 
   const titleTracks = [
-    // Track 0: Senior & Lead Data Analysts + S&P Global
+    // Track 0: Sysco + Big Banks (JPMorgan, Wells Fargo, BofA, Citi) + Lead Data Analyst
     [
-      { label: "S&P Global Direct", fallback: "S&P Global", q: "site:careers.spglobal.com Data Analyst New York", rx: /careers\.spglobal\.com\/jobs\/\d+/i },
+      { label: "Sysco Direct", fallback: "Sysco", q: 'site:careers.sysco.com "Analyst"', rx: /careers\.sysco\.com\/.*job/i },
+      { label: "Big Bank Direct", fallback: "JPMorgan Chase", q: 'site:jpmc.fa.oraclecloud.com "Data Analyst"', rx: /jpmc\.fa\.oraclecloud\.com/i },
+      { label: "Big Bank Direct", fallback: "Wells Fargo", q: 'site:wellsfargojobs.com "Data Analyst"', rx: /wellsfargojobs\.com\/.*job/i },
       { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Lead Data Analyst"', rx: /myworkdayjobs\.com\/.+\/job\//i },
-      { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:jobs.ashbyhq.com "Analytics Engineer"', rx: /jobs\.ashbyhq\.com\/[^/]+\/[a-z0-9-]+/i },
       { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Senior Data Analyst" Remote', rx: /indeed\.com\/viewjob/i },
-      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: "site:myworkdayjobs.com Senior Data Analyst", rx: /myworkdayjobs\.com\/.+\/job\//i },
     ],
-    // Track 1: Technical & IT Project Managers + Program Managers
+    // Track 1: Bank of America, Citigroup, Capital One + S&P Global + BI Analyst
     [
-      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Technical Project Manager"', rx: /myworkdayjobs\.com\/.+\/job\//i },
-      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Senior Project Manager" Virginia', rx: /myworkdayjobs\.com\/.+\/job\//i },
-      { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:boards.greenhouse.io "Technical Program Manager"', rx: /boards\.greenhouse\.io\/[^/]+\/jobs\/\d+/i },
-      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Senior Project Manager" Remote', rx: /indeed\.com\/viewjob/i },
-      { label: "S&P Global Direct", fallback: "S&P Global", q: 'site:careers.spglobal.com "Project Manager"', rx: /careers\.spglobal\.com\/jobs\/\d+/i },
-    ],
-    // Track 2: Business Intelligence & Analytics Engineering
-    [
-      { label: "S&P Global Direct", fallback: "S&P Global", q: "site:careers.spglobal.com Analyst Virginia", rx: /careers\.spglobal\.com\/jobs\/\d+/i },
+      { label: "Big Bank Direct", fallback: "Bank of America", q: 'site:careers.bankofamerica.com "Data Analyst"', rx: /careers\.bankofamerica\.com\/.*job/i },
+      { label: "Big Bank Direct", fallback: "Citigroup", q: 'site:jobs.citi.com "Data Analyst"', rx: /jobs\.citi\.com\/.*job/i },
+      { label: "S&P Global Direct", fallback: "S&P Global", q: 'site:careers.spglobal.com "Data Analyst"', rx: /careers\.spglobal\.com\/jobs\/\d+/i },
       { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Business Intelligence Analyst"', rx: /myworkdayjobs\.com\/.+\/job\//i },
       { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:boards.greenhouse.io "Senior Data Analyst"', rx: /boards\.greenhouse\.io\/[^/]+\/jobs\/\d+/i },
-      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Business Intelligence Analyst" Remote', rx: /indeed\.com\/viewjob/i },
-      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Analytics Engineer"', rx: /myworkdayjobs\.com\/.+\/job\//i },
     ],
-    // Track 3: Financial Data Analysts & Program Leads
+    // Track 2: Sysco Workday + Goldman Sachs / Morgan Stanley / PNC + Analytics Engineer
     [
-      { label: "S&P Global Direct", fallback: "S&P Global", q: 'site:careers.spglobal.com "Senior Analyst" Finance', rx: /careers\.spglobal\.com\/jobs\/\d+/i },
+      { label: "Sysco Direct", fallback: "Sysco", q: 'site:myworkdayjobs.com "Sysco" "Analyst"', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Big Bank Direct", fallback: "Capital One", q: 'site:capitalonecareers.com "Data Analyst"', rx: /capitalonecareers\.com\/.*job/i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Senior Data Analyst" SQL', rx: /myworkdayjobs\.com\/.+\/job\//i },
+      { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:jobs.ashbyhq.com "Analytics Engineer"', rx: /jobs\.ashbyhq\.com\/[^/]+\/[a-z0-9-]+/i },
+      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Business Intelligence Analyst" Remote', rx: /indeed\.com\/viewjob/i },
+    ],
+    // Track 3: Financial Data Analysts + Virginia/DMV + S&P Global
+    [
+      { label: "S&P Global Direct", fallback: "S&P Global", q: 'site:careers.spglobal.com "Analyst" Virginia', rx: /careers\.spglobal\.com\/jobs\/\d+/i },
       { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Financial Data Analyst"', rx: /myworkdayjobs\.com\/.+\/job\//i },
-      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Program Manager" Data', rx: /myworkdayjobs\.com\/.+\/job\//i },
-      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Lead Data Analyst" Remote', rx: /indeed\.com\/viewjob/i },
+      { label: "Workday Enterprise", fallback: "Workday Enterprise", q: 'site:myworkdayjobs.com "Data Analyst" Virginia', rx: /myworkdayjobs\.com\/.+\/job\//i },
       { label: "Ashby / Greenhouse", fallback: "Ashby / Greenhouse", q: 'site:boards.greenhouse.io "Business Intelligence"', rx: /boards\.greenhouse\.io\/[^/]+\/jobs\/\d+/i },
+      { label: "Indeed Live", fallback: "Indeed Employer", q: 'site:indeed.com/viewjob "Lead Data Analyst" Remote', rx: /indeed\.com\/viewjob/i },
     ],
   ];
 
   const activeTrack = titleTracks[trackIndex];
   const linkedInQueries = [
     "Senior Data Analyst Snowflake",
-    "Technical Project Manager",
     "Lead Data Analyst SQL",
-    "Senior Program Manager",
+    "Business Intelligence Analyst",
+    "Financial Data Analyst",
   ];
-  const usajobsKeywords = ["Data Analyst", "Project Manager", "Business Intelligence", "Program Analyst"];
+  const usajobsKeywords = ["Data Analyst", "Business Intelligence", "Financial Data Analyst", "Data Scientist"];
 
   const [synDirect, serperResults, li, usa] = await Promise.all([
     fetchSynchronyUSDirect(),
-    Promise.all(activeTrack.map((t) => fetchSerperBatch(t.label, t.fallback, t.q, t.rx))).then((arr) => arr.flat()),
+    Promise.all(
+      activeTrack.map((t) => fetchSerperBatch(t.label, t.fallback, t.q, t.rx, serperPage))
+    ).then((arr) => arr.flat()),
     fetchLinkedInGuest24h(linkedInQueries[trackIndex]),
     fetchUsajobsLive(usajobsKeywords[trackIndex]),
   ]);
@@ -426,7 +451,7 @@ export async function POST() {
   const { data: existingRows } = await supabase
     .from("verified_jobs")
     .select("url, company, title")
-    .limit(4000);
+    .limit(4500);
 
   const existingUrlSet = new Set<string>();
   const existingPairSet = new Set<string>();
@@ -525,6 +550,7 @@ export async function POST() {
   return NextResponse.json({
     success: true,
     trackIndex,
+    serperPage,
     syncedAt: nowIso,
     discoveredTotal: candidates.length,
     addedCount: insertedRows.length,

@@ -117,7 +117,8 @@ function formatUniformDate(input?: string | null, fallback = "Not Listed"): stri
 const FORTUNE_500_PATTERNS = [
   /\b(performance food group|\bpfg\b|capital one|carmax|dominion energy|dollar tree|hilton|general dynamics|northrop grumman|booz allen|leidos|saic|altria|markel|norfolk southern|huntington ingalls|dxc technology|aes corp|\bnvr\b)\b/i,
   /\b(walmart|amazon|apple|microsoft|alphabet|google|meta platforms|facebook|berkshire hathaway|unitedhealth|optum|mckesson|cencora|amerisourcebergen|cardinal health|cvs health|aetna|cigna|elevance|anthem|humana|centene|molina)\b/i,
-  /\b(jpmorgan|jp morgan|bank of america|wells fargo|citigroup|citi\b|goldman sachs|morgan stanley|american express|visa\b|mastercard|charles schwab|blackrock|state street|truist|pnc\b|u\.s\. bank|us bank|discover|synchrony|ally financial)\b/i,
+    /\b(s&p global|spgi|s and p global)\b/i,
+/\b(jpmorgan|jp morgan|bank of america|wells fargo|citigroup|citi\b|goldman sachs|morgan stanley|american express|visa\b|mastercard|charles schwab|blackrock|state street|truist|pnc\b|u\.s\. bank|us bank|discover|synchrony|ally financial)\b/i,
   /\b(exxon|chevron|conocophillips|marathon petroleum|valero|phillips 66|duke energy|southern company|nextera|exelon|american electric power|sempra)\b/i,
   /\b(lockheed martin|boeing|\brtx\b|raytheon|honeywell|caterpillar|john deere|deere & company|general electric|\bge aerospace\b|3m\b|ford motor|general motors|tesla|paccar|cummins)\b/i,
   /\b(cisco|oracle|ibm\b|salesforce|intel\b|nvidia|amd\b|qualcomm|broadcom|texas instruments|adobe|servicenow|workday|intuit|paycom|adp\b|cognizant|accenture|hp inc|hewlett packard|dell technologies)\b/i,
