@@ -299,7 +299,6 @@ const US_GEO_COORDINATES: Record<string, [number, number]> = {
   ", il": [40.6331, -89.3985],
   "illinois": [40.6331, -89.3985],
   ", wa": [47.7511, -120.7401],
-  "washington": [47.7511, -120.7401],
   ", fl": [27.6648, -81.5158],
   "florida": [27.6648, -81.5158],
   ", ga": [32.1656, -82.9001],
@@ -1184,6 +1183,165 @@ async function discoverOffsiteCorporateJobsFromLinkedIn(
   return discovered;
 }
 
+
+async function discoverOffsiteJobsViaJSearchAndSerper(
+  query: string,
+  homeCity?: string
+): Promise<Partial<VerifiedJobPosting>[]> {
+  const discovered: Partial<VerifiedJobPosting>[] = [];
+  const rapidKey = process.env.RAPIDAPI_KEY || process.env.JSEARCH_API_KEY;
+  const rapidHost = process.env.JSEARCH_HOST || "jsearch.p.rapidapi.com";
+  const serperKey = process.env.SERPER_API_KEY;
+  const serpApiKey = process.env.SERPAPI_KEY;
+
+  const locationHint = homeCity && homeCity.trim() ? homeCity.trim() : "United States";
+
+  // 1. Primary Provider: JSearch (RapidAPI) -> extracts direct corporate ATS apply links
+  if (rapidKey) {
+    try {
+      const jUrl = `https://${rapidHost}/search?query=${encodeURIComponent(`${query} in ${locationHint}`)}&page=1&num_pages=2&date_posted=month`;
+      const jRes = await fetch(jUrl, {
+        headers: {
+          "X-RapidAPI-Key": rapidKey,
+          "X-RapidAPI-Host": rapidHost,
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (jRes.ok) {
+        const jData = await jRes.json();
+        const items = Array.isArray(jData?.data) ? jData.data : [];
+        for (const item of items) {
+          const candidateUrls = [
+            item?.job_apply_link,
+            ...(Array.isArray(item?.apply_options) ? item.apply_options.map((o: any) => o?.apply_link) : []),
+          ].filter(Boolean);
+
+          const directAts = candidateUrls
+            .map((u: string) => normalizeAtsUrl(u))
+            .find((u: string) => isVerifiedDirectAtsUrl(u));
+
+          if (directAts && item?.job_title && item?.employer_name) {
+            const locParts = [item.job_city, item.job_state, item.job_country].filter(Boolean);
+            const locStr = item.job_is_remote
+              ? `Remote (${locParts.join(", ") || "United States"})`
+              : locParts.join(", ") || "United States";
+            const rawId = String(item.job_id || Math.random()).replace(/[^a-zA-Z0-9]/g, "").slice(-10);
+
+            discovered.push({
+              id: `js-${rawId}`,
+              requisitionId: `JS-${rawId.slice(-8)}`,
+              title: String(item.job_title).trim(),
+              company: String(item.employer_name).trim(),
+              atsPlatform: "LinkedIn -> Corporate ATS",
+              location: locStr,
+              isRemote: Boolean(item.job_is_remote),
+              applyUrl: directAts,
+              urlVerified: false,
+              verificationMethod: "PENDING_HTTP_PROBE",
+              postedDate: "Active",
+              postedHoursAgo: 12,
+              description: String(item.job_description || `${item.job_title} at ${item.employer_name}`),
+            });
+          }
+        }
+      }
+    } catch {
+      // Fall through cleanly to Serper.dev
+    }
+  }
+
+  // 2. High-Volume Search Provider: Serper.dev (2,500 free credits) targeting direct ATS boards
+  if (serperKey) {
+    try {
+      const atsQuery = `(site:boards.greenhouse.io OR site:jobs.lever.co OR site:jobs.ashbyhq.com OR site:myworkdayjobs.com) "${query}" ("${locationHint}" OR "Remote")`;
+      const sRes = await fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": serperKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ q: atsQuery, num: 30, gl: "us" }),
+        signal: AbortSignal.timeout(6000),
+      });
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        const organic = Array.isArray(sData?.organic) ? sData.organic : [];
+        organic.forEach((entry: any, idx: number) => {
+          const normUrl = entry?.link ? normalizeAtsUrl(String(entry.link)) : "";
+          if (!normUrl || !isVerifiedDirectAtsUrl(normUrl)) return;
+
+          const rawHeading = String(entry.title || "").trim();
+          const parts = rawHeading.split(/\s[-|–—]\s| at /i).map((p: string) => p.trim()).filter(Boolean);
+          const parsedTitle = parts[0] || query;
+          const hostMatch = normUrl.match(/https?:\/\/([^/]+)/i);
+          const slugMatch = normUrl.match(/(?:greenhouse\.io|lever\.co|ashbyhq\.com)\/([^/?#]+)/i);
+          const parsedCompany =
+            (parts[1] && !/greenhouse|lever|workday|ashby|careers|jobs/i.test(parts[1]) ? parts[1] : null) ||
+            (slugMatch ? slugMatch[1].replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null) ||
+            (hostMatch ? hostMatch[1].split(".")[0].toUpperCase() : "Enterprise Employer");
+
+          discovered.push({
+            id: `serper-${idx}-${Buffer.from(normUrl).toString("base64").slice(0, 10)}`,
+            requisitionId: `SP-${idx + 100}`,
+            title: parsedTitle,
+            company: parsedCompany,
+            atsPlatform: "LinkedIn -> Corporate ATS",
+            location: /remote/i.test(`${rawHeading} ${entry.snippet || ""}`) ? "Remote (US)" : locationHint,
+            isRemote: /remote/i.test(`${rawHeading} ${entry.snippet || ""}`),
+            applyUrl: normUrl,
+            urlVerified: false,
+            verificationMethod: "PENDING_HTTP_PROBE",
+            postedDate: "Active",
+            postedHoursAgo: 12,
+            description: String(entry.snippet || `${parsedTitle} at ${parsedCompany}`),
+          });
+        });
+      }
+    } catch {
+      // Fall through cleanly to SerpApi backup only if needed
+    }
+  }
+
+  // 3. Last-Resort Fallback: SerpApi (only runs if JSearch + Serper returned < 5 direct ATS roles)
+  if (discovered.length < 5 && serpApiKey) {
+    try {
+      const serpUrl = `https://serpapi.com/search.json?engine=google_jobs&q=${encodeURIComponent(`${query} ${locationHint}`)}&hl=en&gl=us&api_key=${serpApiKey}`;
+      const fRes = await fetch(serpUrl, { signal: AbortSignal.timeout(6000) });
+      if (fRes.ok) {
+        const fData = await fRes.json();
+        const jobsResults = Array.isArray(fData?.jobs_results) ? fData.jobs_results : [];
+        jobsResults.forEach((job: any, idx: number) => {
+          const applyOptions = Array.isArray(job?.apply_options) ? job.apply_options : [];
+          const directAts = applyOptions
+            .map((o: any) => normalizeAtsUrl(String(o?.link || "")))
+            .find((u: string) => isVerifiedDirectAtsUrl(u));
+          if (directAts && job?.title && job?.company_name) {
+            discovered.push({
+              id: `serpapi-${idx}-${String(job.job_id || idx).slice(-8)}`,
+              requisitionId: `SA-${idx + 100}`,
+              title: String(job.title).trim(),
+              company: String(job.company_name).trim(),
+              atsPlatform: "LinkedIn -> Corporate ATS",
+              location: String(job.location || locationHint),
+              isRemote: /remote/i.test(String(job.location || "")),
+              applyUrl: directAts,
+              urlVerified: false,
+              verificationMethod: "PENDING_HTTP_PROBE",
+              postedDate: "Active",
+              postedHoursAgo: 12,
+              description: String(job.description || `${job.title} at ${job.company_name}`),
+            });
+          }
+        });
+      }
+    } catch {
+      // Ignore fallback timeout
+    }
+  }
+
+  return discovered;
+}
+
 // Gate 1: Live HTTP Probe & Closed-Requisition Tombstone Verifier
 export async function probeAndValidateSingleUrl(url: string): Promise<{ valid: boolean; reason: string }> {
   try {
@@ -1391,8 +1549,11 @@ export async function aggregateUniversalDirectJobs(
   }
 
   if (includeAggregators) {
-    const offsiteJobs = await discoverOffsiteCorporateJobsFromLinkedIn(query, homeCity);
-    rawPostings.push(...offsiteJobs);
+    const [offsiteLinkedIn, apiDiscoveredJobs] = await Promise.all([
+      discoverOffsiteCorporateJobsFromLinkedIn(query, homeCity),
+      discoverOffsiteJobsViaJSearchAndSerper(query, homeCity),
+    ]);
+    rawPostings.push(...offsiteLinkedIn, ...apiDiscoveredJobs);
   }
 
   audit.totalRawDiscovered = rawPostings.length;
